@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portföy Analizi</title>
+    <link rel="stylesheet" type="text/css" href="/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                Portfolio<span class="plus">+</span>
+            </div>
+            <nav>
+                <a href="anasayfa.html" class="nav-link">
+                    <i class="fas fa-home"></i>
+                    Ana Sayfa
+                </a>
+                <a href="portfoy_olustur.html" class="nav-link">
+                    <i class="fas fa-plus-circle"></i>
+                    Portföy Yönetimi
+                </a>
+                <a href="analiz.html" class="nav-link active">
+                    <i class="fas fa-chart-line"></i>
+                    Portföy Analizi
+                </a>
+                <a href="optimizasyon.html" class="nav-link">
+                    <i class="fas fa-sliders-h"></i>
+                    Optimizasyon
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="header">
+                <h1>Portföy Analizi</h1>
+                <select id="portfolioSelect" class="portfolio-select">
+                    <option value="">Portföy seçiniz...</option>
+                </select>
+            </div>
+
+            <!-- Performans Özeti -->
+            <div class="metrics-grid">
+                <div class="metric-card dropdown">
+                    <div class="metric-header">
+                        <div class="metric-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <div class="metric-content">
+                            <h3>Beklenen Getiri</h3>
+                            <p id="expectedReturnCurrent" class="metric-value">-%</p>
+                        </div>
+                        <div class="dropdown-icon">
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                    <div class="metric-dropdown">
+                        <div class="dropdown-item" data-period="1M">
+                            <span>1 Aylık</span>
+                            <span id="expectedReturn1M">-%</span>
+                        </div>
+                        <div class="dropdown-item" data-period="3M">
+                            <span>3 Aylık</span>
+                            <span id="expectedReturn3M">-%</span>
+                        </div>
+                        <div class="dropdown-item" data-period="6M">
+                            <span>6 Aylık</span>
+                            <span id="expectedReturn6M">-%</span>
+                        </div>
+                        <div class="dropdown-item" data-period="1Y">
+                            <span>1 Yıllık</span>
+                            <span id="expectedReturn1Y">-%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="metric-card dropdown">
+                    <div class="metric-header">
+                        <div class="metric-icon">
+                            <i class="fas fa-chart-bar"></i>
+                        </div>
+                        <div class="metric-content">
+                            <h3>Volatilite</h3>
+                            <p id="volatilityCurrent" class="metric-value">-%</p>
+                        </div>
+                        <div class="dropdown-icon">
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                    <div class="metric-dropdown">
+                        <div class="dropdown-item" data-period="1M">
+                            <span>1 Aylık</span>
+                            <span id="volatility1M">-%</span>
+                        </div>
+                        <div class="dropdown-item" data-period="3M">
+                            <span>3 Aylık</span>
+                            <span id="volatility3M">-%</span>
+                        </div>
+                        <div class="dropdown-item" data-period="6M">
+                            <span>6 Aylık</span>
+                            <span id="volatility6M">-%</span>
+                        </div>
+                        <div class="dropdown-item" data-period="1Y">
+                            <span>1 Yıllık</span>
+                            <span id="volatility1Y">-%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="metric-card dropdown">
+                    <div class="metric-header">
+                        <div class="metric-icon">
+                            <i class="fas fa-balance-scale"></i>
+                        </div>
+                        <div class="metric-content">
+                            <h3>Sharpe Oranı</h3>
+                            <p id="sharpeRatioCurrent" class="metric-value">-</p>
+                        </div>
+                        <div class="dropdown-icon">
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                    <div class="metric-dropdown">
+                        <div class="dropdown-item" data-period="1M">
+                            <span>1 Aylık</span>
+                            <span id="sharpeRatio1M">-</span>
+                        </div>
+                        <div class="dropdown-item" data-period="3M">
+                            <span>3 Aylık</span>
+                            <span id="sharpeRatio3M">-</span>
+                        </div>
+                        <div class="dropdown-item" data-period="6M">
+                            <span>6 Aylık</span>
+                            <span id="sharpeRatio6M">-</span>
+                        </div>
+                        <div class="dropdown-item" data-period="1Y">
+                            <span>1 Yıllık</span>
+                            <span id="sharpeRatio1Y">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="metric-card dropdown">
+                    <div class="metric-header">
+                        <div class="metric-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <div class="metric-content">
+                            <h3>Treynor Oranı</h3>
+                            <p id="treynorRatioCurrent" class="metric-value">-</p>
+                        </div>
+                        <div class="dropdown-icon">
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                    <div class="metric-dropdown">
+                        <div class="dropdown-item" data-period="1M">
+                            <span>1 Aylık</span>
+                            <span id="treynorRatio1M">-</span>
+                        </div>
+                        <div class="dropdown-item" data-period="3M">
+                            <span>3 Aylık</span>
+                            <span id="treynorRatio3M">-</span>
+                        </div>
+                        <div class="dropdown-item" data-period="6M">
+                            <span>6 Aylık</span>
+                            <span id="treynorRatio6M">-</span>
+                        </div>
+                        <div class="dropdown-item" data-period="1Y">
+                            <span>1 Yıllık</span>
+                            <span id="treynorRatio1Y">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detaylı Analiz -->
+            <div class="analysis-grid">
+                <!-- Performans Grafiği -->
+                <div class="analysis-card wide">
+                    <h2>Performans Analizi</h2>
+                    <div class="chart-container">
+                        <canvas id="performanceChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Risk Analizi -->
+                <div class="analysis-card">
+                    <h2>Risk Metrikleri</h2>
+                    <div class="risk-metrics">
+                        <div class="risk-metric">
+                            <span>Beta:</span>
+                            <span id="betaValue">-</span>
+                        </div>
+                    
+                        <div class="risk-metric">
+                            <span>Alpha (1Y):</span>
+                            <span id="alphaValue">-</span>
+                        </div>
+                        <div class="risk-metric">
+                            <span>Alpha (6M):</span>
+                            <span id="alpha6M">-</span>
+                        </div>
+                        <div class="risk-metric">
+                            <span>Alpha (3M):</span>
+                            <span id="alpha3M">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Korelasyon Matrisi -->
+                <div class="analysis-card">
+                    <h2>Korelasyon Analizi</h2>
+                    <div class="correlation-container">
+                        <table id="correlationMatrix" class="correlation-table">
+                            <thead>
+                                <tr>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- date-fns -->
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+    <!-- Chart.js adapter -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <!-- En son bizim kod -->
+    <script src="/js/analysis.js"></script>
+</body>
+</html>
+
