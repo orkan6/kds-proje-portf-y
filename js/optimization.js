@@ -857,7 +857,7 @@ class MonteCarloSimulator {
     }
 
     async simulate() {
-        console.log('MONTE CARLO SİKİŞİ BAŞLIYOR...');
+        console.log('Monte Carlo simülasyonu başlatılıyor...');
 
         const results = [];
         const weights = this.portfolio.assets.map(a => a.weight);
@@ -871,13 +871,13 @@ class MonteCarloSimulator {
             results.push(finalValue);
 
             if (i % 1000 === 0) {
-                console.log(`${i} SİMÜLASYON TAMAMLANDI`);
+                console.log(`${i} simülasyon tamamlandı`);
             }
         }
 
         // Sonuçları analiz et
         const analysis = this.analyzeResults(results);
-        console.log('MONTE CARLO ANALİZİ:', analysis);
+        console.log('Monte Carlo analizi tamamlandı:', analysis);
 
         return {
             results,
