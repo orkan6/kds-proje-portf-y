@@ -883,55 +883,46 @@ body {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 1.5rem;
-    margin-top: 2rem;
+    margin-top: 1rem;
 }
 
 .simulation-card {
-    background: var(--card-background);
-    border-radius: var(--border-radius);
+    background: white;
+    border-radius: 8px;
     padding: 1.5rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.simulation-card h3 {
-    color: var(--text-primary);
-    font-size: 1.1rem;
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid #eee;
-}
-
-.simulation-metrics {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
+.metrics-grid {
+    display: grid;
+    gap: 1rem;
 }
 
 .metric-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.5rem;
-    background: rgba(0, 0, 0, 0.02);
+    padding: 0.75rem;
+    background: #f8f9fa;
     border-radius: 6px;
 }
 
-.metric-label {
-    color: var(--text-secondary);
+.metric-item .label {
+    color: #6b7280;
     font-size: 0.9rem;
 }
 
-.metric-value {
+.metric-item .value {
     font-weight: 500;
-    font-size: 1rem;
+    font-size: 1.1rem;
 }
 
-.metric-value.positive {
-    color: var(--success-color);
-}
+.value.positive { color: #10b981; }
+.value.negative { color: #ef4444; }
 
-.metric-value.negative {
-    color: var(--danger-color);
+.correlation-matrix {
+    height: 300px;
+    margin-top: 1rem;
 }
 
 /* Korelasyon Isı Haritası Stilleri */
@@ -1064,4 +1055,9 @@ body {
 
 .btn-secondary {
     background: var(--text-secondary);
+}
+
+/* Test stilleri */
+.test-simulation-results {
+    border: 2px dashed #f00; /* Test modunda olduğunu belli etmek için */
 }

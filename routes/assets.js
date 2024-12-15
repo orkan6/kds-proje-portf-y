@@ -1112,4 +1112,21 @@ async function calculateAssetReturns(symbol) {
     }
 }
 
+// Test endpoint
+router.get('/test/simulation', (req, res) => {
+    res.json({
+        expectedReturn: 0.15,
+        risk: 0.08,
+        sharpeRatio: 1.2,
+        correlationMatrix: {
+            assets: ['AAPL', 'MSFT', 'GOOGL'],
+            matrix: [
+                [1, 0.5, 0.3],
+                [0.5, 1, 0.4],
+                [0.3, 0.4, 1]
+            ]
+        }
+    });
+});
+
 module.exports = router;

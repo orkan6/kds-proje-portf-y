@@ -819,6 +819,189 @@ class PortfolioSimulator {
     }
 }
 
+// Monte Carlo Simülasyonu
+class MonteCarloSimulator {
+    constructor(portfolio, iterations = 10000, timeHorizon = 252) {
+        if (!portfolio || !portfolio.assets || !Array.isArray(portfolio.assets)) {
+            throw new Error('Geçersiz portföy verisi');
+        }
+
+        this.portfolio = portfolio;
+        this.iterations = iterations;
+        this.timeHorizon = timeHorizon;
+        this.riskFreeRate = 0.0475;
+    }
+
+    calculateReturns() {
+        // Basit rastgele getiriler üret (gerçek veriler olmadığı için)
+        return this.portfolio.assets.map(() => {
+            const returns = [];
+            for (let i = 0; i < 252; i++) { // 1 yıllık günlük getiri
+                returns.push(this.generateNormal() * 0.02); // %2 std sapma
+            }
+            return returns;
+        });
+    }
+
+    calculateCovariance(returns) {
+        const n = returns.length;
+        const matrix = Array(n).fill().map(() => Array(n).fill(0));
+
+        for (let i = 0; i < n; i++) {
+            for (let j = 0; j < n; j++) {
+                matrix[i][j] = this.portfolio.correlationMatrix[i][j] * 0.02 * 0.02;
+            }
+        }
+
+        return matrix;
+    }
+
+    async simulate() {
+        console.log('MONTE CARLO SİKİŞİ BAŞLIYOR...');
+
+        const results = [];
+        const weights = this.portfolio.assets.map(a => a.weight);
+        const returns = this.calculateReturns();
+        const covariance = this.calculateCovariance(returns);
+
+        // Her bir simülasyon için
+        for (let i = 0; i < this.iterations; i++) {
+            const path = this.generatePath(returns, covariance);
+            const finalValue = this.calculateFinalValue(path);
+            results.push(finalValue);
+
+            if (i % 1000 === 0) {
+                console.log(`${i} SİMÜLASYON TAMAMLANDI`);
+            }
+        }
+
+        // Sonuçları analiz et
+        const analysis = this.analyzeResults(results);
+        console.log('MONTE CARLO ANALİZİ:', analysis);
+
+        return {
+            results,
+            analysis,
+            confidence: {
+                var95: this.calculateVaR(results, 0.95),
+                var99: this.calculateVaR(results, 0.99),
+                cvar95: this.calculateCVaR(results, 0.95)
+            }
+        };
+    }
+
+    // Getiri yolları oluştur
+    generatePath(returns, covariance) {
+        const path = Array(this.timeHorizon).fill(0);
+        const meanReturns = returns.map(r => r.reduce((a, b) => a + b) / r.length);
+        
+        // Cholesky decomposition (korelasyonlu random için)
+        const L = this.choleskyDecomposition(covariance);
+
+        for (let t = 0; t < this.timeHorizon; t++) {
+            // Random normal dağılımlı sayılar üret
+            const Z = Array(returns.length).fill(0)
+                .map(() => this.generateNormal());
+
+            // Korelasyonlu random getiriler
+            const correlatedReturns = this.multiplyMatrixVector(L, Z);
+
+            // Günlük getiriyi hesapla
+            path[t] = correlatedReturns.reduce((sum, r, i) => 
+                sum + (meanReturns[i] + r) * this.portfolio.assets[i].weight, 0);
+        }
+
+        return path;
+    }
+
+    // Sonuçları analiz et
+    analyzeResults(results) {
+        const sorted = [...results].sort((a, b) => a - b);
+        const mean = results.reduce((a, b) => a + b) / results.length;
+        const median = sorted[Math.floor(results.length / 2)];
+        
+        // Volatilite
+        const variance = results.reduce((sum, r) => 
+            sum + Math.pow(r - mean, 2), 0) / (results.length - 1);
+        const volatility = Math.sqrt(variance);
+
+        return {
+            mean,
+            median,
+            volatility,
+            min: sorted[0],
+            max: sorted[sorted.length - 1],
+            percentiles: {
+                p5: sorted[Math.floor(results.length * 0.05)],
+                p25: sorted[Math.floor(results.length * 0.25)],
+                p75: sorted[Math.floor(results.length * 0.75)],
+                p95: sorted[Math.floor(results.length * 0.95)]
+            }
+        };
+    }
+
+    // Yardımcı fonksiyonlar
+    generateNormal() {
+        let u = 0, v = 0;
+        while (u === 0) u = Math.random();
+        while (v === 0) v = Math.random();
+        return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+    }
+
+    choleskyDecomposition(matrix) {
+        const n = matrix.length;
+        const L = Array(n).fill().map(() => Array(n).fill(0));
+
+        for (let i = 0; i < n; i++) {
+            for (let j = 0; j <= i; j++) {
+                let sum = 0;
+                for (let k = 0; k < j; k++) {
+                    sum += L[i][k] * L[j][k];
+                }
+                L[i][j] = i === j ?
+                    Math.sqrt(Math.max(0, matrix[i][i] - sum)) :
+                    (matrix[i][j] - sum) / L[j][j];
+            }
+        }
+        return L;
+    }
+
+    multiplyMatrixVector(matrix, vector) {
+        return matrix.map(row => 
+            row.reduce((sum, val, i) => sum + val * vector[i], 0)
+        );
+    }
+
+    // Bu eksik fonksiyonu ekleyelim
+    calculateFinalValue(path) {
+        // Başlangıç değeri 1 (100%)
+        let value = 1.0;
+        
+        // Her günlük getiriyi uygula
+        path.forEach(dailyReturn => {
+            value *= (1 + dailyReturn);
+        });
+
+        // Final değerinden başlangıç değerini çıkar = Toplam getiri
+        return value - 1.0;
+    }
+
+    // VaR hesaplama fonksiyonu ekleyelim
+    calculateVaR(results, confidence) {
+        const sorted = [...results].sort((a, b) => a - b);
+        const index = Math.floor(results.length * (1 - confidence));
+        return sorted[index];
+    }
+
+    // CVaR hesaplama fonksiyonu ekleyelim
+    calculateCVaR(results, confidence) {
+        const sorted = [...results].sort((a, b) => a - b);
+        const varIndex = Math.floor(results.length * (1 - confidence));
+        const tailValues = sorted.slice(0, varIndex);
+        return tailValues.reduce((a, b) => a + b, 0) / varIndex;
+    }
+}
+
 // Sayfa yüklendiğinde portföyleri getir
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('Sayfa yüklendi, portföyleri getiriyor...');
@@ -852,9 +1035,27 @@ document.addEventListener('DOMContentLoaded', async function() {
                     fetch(`/api/portfolios/${portfolioId}/recommendations`).then(r => r.json())
                 ]);
 
-                // Sonuçları göster
-                updateSimulationCharts(portfolioData);
-                displayRecommendations(recommendations);
+                // Debug için
+                console.log('Portföy Verisi:', portfolioData);
+                console.log('Öneriler:', recommendations);
+
+                // Önce önerileri göster
+                if (recommendations) {
+                    displayRecommendations(recommendations);
+                }
+
+                // Sonra simülasyon sonuçlarını göster
+                if (portfolioData) {
+                    displaySimulationResults({
+                        expectedReturn: portfolioData.expectedReturn || 0,
+                        risk: portfolioData.risk || 0,
+                        sharpeRatio: portfolioData.sharpeRatio || 0,
+                        correlationMatrix: portfolioData.correlationMatrix || {
+                            assets: [],
+                            matrix: []
+                        }
+                    });
+                }
 
             } catch (err) {
                 console.error('Veri getirme hatası:', err);
@@ -1247,156 +1448,238 @@ async function simulateAddition(symbol) {
 }
 
 // Simülasyon sonuçlarını görselleştir
-function displaySimulationResults(results) {
-    const container = document.createElement('div');
-    container.className = 'simulation-results';
+async function displaySimulationResults(results) {
+    const container = document.querySelector('.simulation-results');
+    if (!container) return;
 
-    // Özet kart
-    const summaryCard = createSimulationCard('Simülasyon Özeti', {
-        'Beklenen Getiri': `${(results.expectedReturn * 100).toFixed(2)}%`,
-        'Risk': `${(results.risk * 100).toFixed(2)}%`,
-        'Sharpe Oranı': results.sharpeRatio.toFixed(2),
-        'Risk Azaltma': `${(results.diversificationEffect.riskReduction * 100).toFixed(2)}%`
-    });
-
-    // Korelasyon etkisi kartı
-    const correlationCard = createSimulationCard('Korelasyon Etkisi', {
-        'Önceki Ortalama': results.diversificationEffect.correlationImpact.before.toFixed(2),
-        'Sonraki Ortalama': results.diversificationEffect.correlationImpact.after.toFixed(2),
-        'İyileştirme': `${(results.diversificationEffect.correlationImpact.improvement * 100).toFixed(2)}%`
-    });
-
-    container.appendChild(summaryCard);
-    container.appendChild(correlationCard);
-
-    // Mevcut sonuç container'ı varsa değiştir, yoksa ekle
-    const existingContainer = document.querySelector('.simulation-results');
-    if (existingContainer) {
-        existingContainer.replaceWith(container);
-    } else {
-        document.querySelector('.optimization-grid').appendChild(container);
-    }
-
-    // Grafikleri güncelle
-    updateSimulationCharts(results);
-}
-
-// Simülasyon kartı oluştur
-function createSimulationCard(title, metrics) {
-    const card = document.createElement('div');
-    card.className = 'simulation-card';
-    
-    card.innerHTML = `
-        <h3>${title}</h3>
-        <div class="simulation-metrics">
-            ${Object.entries(metrics).map(([key, value]) => `
-                <div class="metric-item">
-                    <span class="metric-label">${key}:</span>
-                    <span class="metric-value ${getValueClass(value)}">${value}</span>
-                </div>
-            `).join('')}
-        </div>
-    `;
-    
-    return card;
-}
-
-// Değer sınıfını belirle (pozitif/negatif gösterimi için)
-function getValueClass(value) {
-    if (typeof value === 'string') {
-        const numValue = parseFloat(value);
-        if (isNaN(numValue)) return '';
-        return numValue > 0 ? 'positive' : numValue < 0 ? 'negative' : '';
-    }
-    return value > 0 ? 'positive' : value < 0 ? 'negative' : '';
-}
-
-// Simülasyon grafiklerini interaktif hale getir
-function updateSimulationCharts(results) {
-    // Debug log
+    // Debug için
     console.log('Simülasyon sonuçları:', results);
 
-    // Veri kontrolü
-    if (!results) {
-        console.warn('Simülasyon verisi eksik');
-        return;
+    // Özet kartı
+    const summaryCard = document.createElement('div');
+    summaryCard.className = 'simulation-card';
+    summaryCard.innerHTML = `
+        <h3>Portföy Simülasyonu</h3>
+        <div class="metrics-grid">
+            <div class="metric-item">
+                <span class="label">Beklenen Getiri</span>
+                <span class="value ${results.expectedReturn > 0 ? 'positive' : 'negative'}">
+                    ${(results.expectedReturn * 100).toFixed(2)}%
+                </span>
+            </div>
+            <div class="metric-item">
+                <span class="label">Risk</span>
+                <span class="value">
+                    ${(results.risk * 100).toFixed(2)}%
+                </span>
+            </div>
+            <div class="metric-item">
+                <span class="label">Sharpe Oranı</span>
+                <span class="value ${results.sharpeRatio > 1 ? 'positive' : 'negative'}">
+                    ${results.sharpeRatio.toFixed(2)}
+                </span>
+            </div>
+        </div>
+    `;
+
+    // Korelasyon kartı
+    const correlationCard = document.createElement('div');
+    correlationCard.className = 'simulation-card';
+    correlationCard.innerHTML = `
+        <h3>Korelasyon Analizi</h3>
+        <div class="correlation-matrix">
+            <canvas id="correlationHeatmap"></canvas>
+        </div>
+    `;
+
+    try {
+        // Monte Carlo simülasyonunu başlat
+        const portfolioData = {
+            assets: results.correlationMatrix.assets.map((symbol, index) => ({
+                symbol,
+                weight: 1 / results.correlationMatrix.assets.length, // Eşit ağırlık
+                returns: [], // Getiri verisi sonra eklenecek
+                prices: [] // Fiyat verisi sonra eklenecek
+            })),
+            correlationMatrix: results.correlationMatrix.matrix
+        };
+
+        // Monte Carlo simülasyonunu başlat
+        const simulator = new MonteCarloSimulator(portfolioData);
+        const monteCarloResults = await simulator.simulate();
+
+        // Monte Carlo kartı
+        const monteCarloCard = document.createElement('div');
+        monteCarloCard.className = 'simulation-card';
+        monteCarloCard.innerHTML = `
+            <h3>Monte Carlo Analizi</h3>
+            <div class="metrics-grid">
+                <div class="metric-item">
+                    <span class="label">95% VaR</span>
+                    <span class="value negative">
+                        ${(monteCarloResults.confidence.var95 * 100).toFixed(2)}%
+                    </span>
+                </div>
+                <div class="metric-item">
+                    <span class="label">Beklenen Getiri</span>
+                    <span class="value ${monteCarloResults.analysis.mean > 0 ? 'positive' : 'negative'}">
+                        ${(monteCarloResults.analysis.mean * 100).toFixed(2)}%
+                    </span>
+                </div>
+                <div class="metric-item">
+                    <span class="label">Volatilite</span>
+                    <span class="value">
+                        ${(monteCarloResults.analysis.volatility * 100).toFixed(2)}%
+                    </span>
+                </div>
+            </div>
+            <div class="monte-carlo-chart">
+                <canvas id="monteCarloChart"></canvas>
+            </div>
+        `;
+
+        // Kartları ekle
+        container.innerHTML = '';
+        container.appendChild(summaryCard);
+        container.appendChild(correlationCard);
+        container.appendChild(monteCarloCard);
+
+        // Grafikleri çiz
+        drawCorrelationHeatmap(results.correlationMatrix);
+        drawMonteCarloChart(monteCarloResults.results);
+
+    } catch (err) {
+        console.error('Monte Carlo simülasyon hatası:', err);
+        
+        // Hata durumunda sadece temel kartları göster
+        container.innerHTML = '';
+        container.appendChild(summaryCard);
+        container.appendChild(correlationCard);
+        
+        // Temel grafikleri çiz
+        drawCorrelationHeatmap(results.correlationMatrix);
+    }
+}
+
+// Monte Carlo grafiğini çiz
+function drawMonteCarloChart(results) {
+    const ctx = document.getElementById('monteCarloChart');
+    if (!ctx) return;
+
+    // Mevcut grafiği temizle
+    const existingChart = Chart.getChart(ctx);
+    if (existingChart) {
+        existingChart.destroy();
     }
 
-    // Canvas kontrolü
-    const canvas = document.getElementById('efficientFrontierChart');
-    if (!canvas) {
-        console.warn('Grafik canvas bulunamadı');
-        return;
-    }
+    // Histogram verisi hazırla
+    const bins = 50;
+    const min = Math.min(...results);
+    const max = Math.max(...results);
+    const binSize = (max - min) / bins;
+    const histogram = Array(bins).fill(0);
 
-    // Varlık verisi kontrolü
-    if (!results.assets || !Array.isArray(results.assets)) {
-        console.warn('Geçersiz varlık verisi formatı');
-        return;
-    }
-
-    // Varlık sembollerini kontrol et
-    const symbols = results.assets.map(asset => {
-        if (!asset || !asset.symbol) {
-            console.warn('Eksik varlık sembolü:', asset);
-            return 'BİLİNMEYEN';
-        }
-        return asset.symbol;
+    results.forEach(value => {
+        const binIndex = Math.min(
+            Math.floor((value - min) / binSize),
+            bins - 1
+        );
+        histogram[binIndex]++;
     });
 
-    // Grafik oluştur
-    new Chart(canvas.getContext('2d'), {
-        type: 'scatter',
+    new Chart(ctx, {
+        type: 'bar',
         data: {
+            labels: histogram.map((_, i) => 
+                ((min + (i + 0.5) * binSize) * 100).toFixed(1) + '%'
+            ),
             datasets: [{
-                label: 'Mevcut Portföy',
-                data: [{
-                    x: results.risk || 0,
-                    y: results.expectedReturn || 0
-                }],
-                backgroundColor: '#4CAF50'
+                label: 'Simülasyon Dağılımı',
+                data: histogram,
+                backgroundColor: 'rgba(37, 99, 235, 0.5)',
+                borderColor: 'rgba(37, 99, 235, 1)',
+                borderWidth: 1
             }]
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Monte Carlo Simülasyonu Sonuçları'
+                }
+            },
             scales: {
-                x: { title: { display: true, text: 'Risk (%)' } },
-                y: { title: { display: true, text: 'Getiri (%)' } }
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Getiri (%)'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Frekans'
+                    }
+                }
             }
         }
     });
-
-    // Ağırlık grafiği için kontrol
-    if (results.currentWeights && Array.isArray(results.currentWeights)) {
-        const weightCtx = document.getElementById('allocationChart');
-        if (weightCtx) {
-            new Chart(weightCtx.getContext('2d'), {
-                type: 'bar',
-                data: {
-                    labels: symbols,
-                    datasets: [{
-                        label: 'Ağırlıklar',
-                        data: results.currentWeights,
-                        backgroundColor: '#2196F3'
-                    }]
-                }
-            });
-        }
-    }
 }
 
-// Korelasyon rengi belirle
-function getCorrelationColor(value) {
-    const colors = {
-        positive: 'rgba(76, 175, 80, VALUE)',  // Yeşil
-        negative: 'rgba(244, 67, 54, VALUE)',  // Kırmızı
-        neutral: 'rgba(158, 158, 158, VALUE)'  // Gri
-    };
+// Korelasyon matrisini çiz
+function drawCorrelationHeatmap(correlationData) {
+    const ctx = document.getElementById('correlationHeatmap');
+    if (!ctx) return;
 
-    const alpha = Math.abs(value);
-    if (value > 0.1) return colors.positive.replace('VALUE', alpha);
-    if (value < -0.1) return colors.negative.replace('VALUE', alpha);
-    return colors.neutral.replace('VALUE', 0.5);
+    // Mevcut grafiği temizle
+    const existingChart = Chart.getChart(ctx);
+    if (existingChart) {
+        existingChart.destroy();
+    }
+
+    const labels = correlationData.assets;
+    const matrix = correlationData.matrix;
+
+    new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Korelasyon Matrisi',
+                data: matrix.flatMap((row, i) => 
+                    row.map((value, j) => ({
+                        x: i,
+                        y: j,
+                        value: value
+                    }))
+                ),
+                backgroundColor: (ctx) => {
+                    const value = ctx.raw?.value || 0;
+                    return value > 0 
+                        ? `rgba(76, 175, 80, ${Math.abs(value)})`
+                        : `rgba(244, 67, 54, ${Math.abs(value)})`;
+                },
+                pointRadius: 10
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    ticks: {
+                        callback: (value) => labels[value] || ''
+                    }
+                },
+                y: {
+                    ticks: {
+                        callback: (value) => labels[value] || ''
+                    }
+                }
+            }
+        }
+    });
 }
 
 // Modal işlevselliği - tek bir yerde tanımlayalım
@@ -1463,3 +1746,32 @@ function resetCharts() {
     document.querySelector('.correlation-heatmap').innerHTML = '<canvas id="correlationHeatmap"></canvas>';
     document.querySelector('.chart-container').innerHTML = '<canvas id="simulationChart"></canvas>';
 }
+
+// Test fonksiyonu
+async function testSimulation() {
+    const mockResults = {
+        expectedReturn: 0.15,
+        risk: 0.08,
+        sharpeRatio: 1.2,
+        correlationMatrix: {
+            assets: ['AAPL', 'MSFT', 'GOOGL'],
+            matrix: [
+                [1, 0.5, 0.3],
+                [0.5, 1, 0.4],
+                [0.3, 0.4, 1]
+            ]
+        }
+    };
+
+    // Test kartlarını göster
+    displaySimulationResults(mockResults);
+}
+
+// Test butonu ekle
+document.getElementById('optimizeBtn').addEventListener('click', async () => {
+    try {
+        await testSimulation();
+    } catch (err) {
+        console.error('Test hatası:', err);
+    }
+});
