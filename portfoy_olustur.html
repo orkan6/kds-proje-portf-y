@@ -7,23 +7,23 @@
     <link rel="stylesheet" type="text/css" href="/css/styles.css">
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Form submit olayını dinle
+            
             const form = document.getElementById('portfolioForm');
             if (form) {
                 form.addEventListener('submit', handleFormSubmit);
             }
 
-            // İlk varlık arama dinleyicisini ekle
+            
             const initialSearchInput = document.querySelector('.asset-search-input');
             if (initialSearchInput) {
                 setupAssetSearchListeners(initialSearchInput);
             }
 
-            // Portföyleri yükle
+            
             loadPortfolios();
         });
 
-        // Yeni varlık satırı ekleme
+        
         function addNewAsset() {
             const assetList = document.getElementById('assetList');
             const newAssetItem = document.createElement('div');
@@ -47,25 +47,25 @@
             `;
             assetList.appendChild(newAssetItem);
             
-            // Yeni eklenen input için arama dinleyicisini ekle
+            
             setupAssetSearchListeners(newAssetItem.querySelector('.asset-search-input'));
         }
 
-        // Varlık satırını silme
+        
         function removeAsset(button) {
             button.closest('.asset-item').remove();
             updateWeightTotal();
         }
 
-        // Arama dinleyicilerini kurma
+        
         function setupAssetSearchListeners(input) {
-            if (!input) return; // Input elementi yoksa fonksiyondan çık
+            if (!input) return; 
 
             input.addEventListener('input', function() {
                 searchAssets(this.value, this);
             });
 
-            // Tıklama dışında arama sonuçlarını gizle
+            
             document.addEventListener('click', function(e) {
                 if (!input.contains(e.target)) {
                     const suggestions = input.nextElementSibling;
@@ -76,7 +76,7 @@
             });
         }
 
-        // Varlık arama fonksiyonu
+        
         async function searchAssets(searchTerm, inputElement) {
             if (!searchTerm || searchTerm.length < 2) {
                 inputElement.nextElementSibling.style.display = 'none';
@@ -84,10 +84,10 @@
             }
 
             try {
-                console.log('Searching for:', searchTerm); // Debug için
+                console.log('Searching for:', searchTerm); 
                 
                 const response = await fetch(`/api/search?q=${encodeURIComponent(searchTerm)}`);
-                console.log('Response status:', response.status); // Debug için
+                console.log('Response status:', response.status); 
                 
                 if (!response.ok) {
                     const errorData = await response.json();
@@ -95,7 +95,7 @@
                 }
                 
                 const results = await response.json();
-                console.log('Search results:', results); // Debug için
+                console.log('Search results:', results); 
                 
                 displayResults(results, inputElement.nextElementSibling);
             } catch (err) {
@@ -104,7 +104,7 @@
             }
         }
 
-        // Arama sonuçlarını gösterme
+        
         function displayResults(results, suggestionsDiv) {
             suggestionsDiv.innerHTML = '';
             let hasResults = false;
@@ -139,7 +139,7 @@
             suggestionsDiv.style.display = hasResults ? 'block' : 'none';
         }
 
-        // Varlık seçildiğinde input tipini güncelle
+        
         function selectAsset(asset, type, inputElement) {
             const assetItem = inputElement.closest('.asset-item');
             const quantityInput = assetItem.querySelector('.quantity-input');
@@ -152,7 +152,7 @@
             inputElement.dataset.symbol = type === 'STOCK' ? asset.Symbol : asset.name;
             inputElement.dataset.price = type === 'STOCK' ? asset.Currentprice : asset.price;
             
-            // Input tipini ve placeholder'ı güncelle
+            
             if (type === 'STOCK') {
                 quantityInput.placeholder = 'Adet';
                 quantityInput.step = '1';
@@ -163,13 +163,13 @@
                 quantityInput.min = '0.01';
             }
             
-            // Quantity input listener'ı ekle
+            
             quantityInput.addEventListener('input', () => calculateAssetValues(assetItem));
             
             inputElement.nextElementSibling.style.display = 'none';
         }
 
-        // Varlık değerlerini hesapla
+        
         function calculateAssetValues(assetItem) {
             const searchInput = assetItem.querySelector('.asset-search-input');
             const quantityInput = assetItem.querySelector('.quantity-input');
@@ -181,29 +181,29 @@
             
             let totalValue;
             if (isStock) {
-                // Hisse senedi için: adet * fiyat
+                
                 const quantity = parseInt(quantityInput.value) || 0;
                 totalValue = price * quantity;
             } else {
-                // Emtia için: direkt USD miktar
+                
                 totalValue = parseFloat(quantityInput.value) || 0;
             }
             
-            // Portföy toplam değerini al
+            
             const portfolioSize = parseFloat(document.getElementById('portfolio-size').value) || 0;
             
-            // Ağırlığı hesapla
+            
             const weight = portfolioSize > 0 ? (totalValue / portfolioSize) * 100 : 0;
             
-            // Değerleri güncelle
+            
             weightSpan.textContent = weight.toFixed(2);
             totalSpan.textContent = totalValue.toFixed(2);
             
-            // Tüm portföyü yeniden hesapla
+            
             calculatePortfolioTotals();
         }
 
-        // Portföy toplamlarını hesapla
+        
         function calculatePortfolioTotals() {
             const portfolioSize = parseFloat(document.getElementById('portfolio-size').value) || 0;
             let totalInvested = 0;
@@ -217,16 +217,16 @@
                 totalWeight += weight;
             });
             
-            // Toplam değerleri göster
+            
             document.getElementById('total-invested').textContent = totalInvested.toFixed(2);
             document.getElementById('total-weight').textContent = totalWeight.toFixed(2);
             
-            // Kalan miktar
+            
             const remaining = portfolioSize - totalInvested;
             document.getElementById('remaining-amount').textContent = remaining.toFixed(2);
         }
 
-        // Form gönderme işlemini güncelle
+        
         async function handleFormSubmit(event) {
             event.preventDefault();
             
@@ -238,7 +238,7 @@
                     assets: []
                 };
 
-                // Varlıkları topla
+                
                 document.querySelectorAll('.asset-item').forEach(item => {
                     const searchInput = item.querySelector('.asset-search-input');
                     const quantityInput = item.querySelector('.quantity-input');
@@ -258,7 +258,7 @@
                     }
                 });
 
-                // Temel validasyonlar
+                
                 if (!portfolioData.portfolio_name) {
                     throw new Error('Portföy adı gereklidir');
                 }
@@ -271,13 +271,13 @@
                     throw new Error('En az bir varlık eklemelisiniz');
                 }
 
-                // Toplam ağırlık kontrolü
+                
                 const totalWeight = portfolioData.assets.reduce((sum, asset) => sum + asset.weight, 0);
                 if (totalWeight > 100) {
                     throw new Error('Toplam ağırlık %100\'ü geçemez');
                 }
 
-                // API'ye gönder
+                
                 const response = await fetch('/api/portfolios', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -295,7 +295,7 @@
             }
         }
 
-        // Portföyleri yükle
+        
         async function loadPortfolios() {
             try {
                 const response = await fetch('/api/portfolios');
@@ -306,7 +306,7 @@
             }
         }
 
-        // Portföyleri görüntüleme fonksiyonunu güncelle
+        
         function displayPortfolios(portfolios) {
             const grid = document.getElementById('portfoliosGrid');
             if (!grid) return;
@@ -314,7 +314,7 @@
             grid.innerHTML = '';
             
             portfolios.forEach(portfolio => {
-                // Portfolio details'i daha güvenli bir şekilde parse et
+                
                 let portfolioDetails = [];
                 try {
                     portfolioDetails = typeof portfolio.portfolio_details === 'string' 
@@ -327,7 +327,7 @@
                 const card = document.createElement('div');
                 card.className = 'portfolio-card';
                 
-                // Güvenli değer dönüşümleri ekle
+                
                 const assetsHtml = `
                     <div class="portfolio-assets">
                         <div class="asset-list-title">Varlıklar:</div>
@@ -352,7 +352,7 @@
                         }
                     </div>`;
 
-                // XSS koruması için escapeHtml kullan
+                
                 card.innerHTML = `
                     <div class="portfolio-header">
                         <div class="portfolio-name">${escapeHtml(portfolio.portfolio_name)}</div>
@@ -381,7 +381,7 @@
             });
         }
 
-        // XSS koruması için yardımcı fonksiyon
+        
         function escapeHtml(unsafe) {
             return unsafe
                 .replace(/&/g, "&amp;")
@@ -391,7 +391,7 @@
                 .replace(/'/g, "&#039;");
         }
 
-        // Portföy düzenleme
+        
         async function editPortfolio(portfolioId) {
             try {
                 const response = await fetch(`/api/portfolios/${portfolioId}`);
@@ -399,16 +399,16 @@
                 
                 const portfolio = await response.json();
                 
-                // Form alanlarını doldur
+                
                 document.getElementById('portfolio-name').value = portfolio.portfolio_name;
                 document.getElementById('description').value = portfolio.description || '';
                 document.getElementById('portfolio-size').value = portfolio.initial_value;
                 
-                // Varlık listesini temizle
+                
                 const assetList = document.getElementById('assetList');
                 assetList.innerHTML = '';
                 
-                // Varlıkları form'a ekle
+                
                 if (portfolio.assets && portfolio.assets.length > 0) {
                     portfolio.assets.forEach(asset => {
                         const assetItem = document.createElement('div');
@@ -438,12 +438,12 @@
                     });
                 }
                 
-                // Form'u düzenleme moduna al
+                
                 const form = document.getElementById('portfolioForm');
                 form.dataset.editMode = 'true';
                 form.dataset.portfolioId = portfolioId;
                 
-                // Sayfayı form'a kaydır
+                
                 document.querySelector('.creation-form').scrollIntoView({ behavior: 'smooth' });
             } catch (err) {
                 console.error('Portföy yükleme hatası:', err);
@@ -451,7 +451,7 @@
             }
         }
 
-        // Portföy silme
+        
         async function deletePortfolio(portfolioId) {
             if (!confirm('Bu portföyü silmek istediğinizden emin misiniz?')) {
                 return;
@@ -464,7 +464,7 @@
 
                 if (!response.ok) throw new Error('Silme işlemi başarısız');
                 
-                // Portföy listesini yenile
+                
                 loadPortfolios();
                 alert('Portföy başarıyla silindi');
             } catch (err) {
@@ -473,7 +473,7 @@
             }
         }
 
-        // Sayfa yüklendiğinde portföyleri getir
+        
         document.addEventListener('DOMContentLoaded', () => {
             loadPortfolios();
         });
@@ -484,7 +484,7 @@
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="logo">
-                Portfolio<span class="plus">+</span>
+                Portfoy
             </div>
             <nav>
                 <a href="anasayfa.html" class="nav-link">
@@ -579,9 +579,10 @@
                     </form>
                 </div>
 
-                <!-- Portföy Listesi -->
-                <div id="portfoliosGrid" class="portfolios-grid">
-                    <!-- Portföyler buraya dinamik olarak eklenecek -->
+                <!-- Mevcut portföyler bölümü -->
+                <div class="existing-portfolios">
+                    <h2>Mevcut Portföyler</h2>
+                    <div id="portfolioList" class="portfolio-grid"></div>
                 </div>
             </div>
         </main>
@@ -633,5 +634,81 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <script src="/js/portfolio.js"></script>
+
+    <!-- Hata mesajı için div -->
+    <div id="errorMessage" class="error-message" style="display: none;"></div>
+
+    <!-- Portföy listesi için grid -->
+    <div id="portfoliosGrid" class="portfolios-grid"></div>
+
+    <!-- Stil ekleyelim -->
+    <style>
+    .error-message {
+        background-color: #ffebee;
+        color: #c62828;
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 4px;
+        border: 1px solid #ef9a9a;
+    }
+
+    .portfolios-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 20px;
+        padding: 20px;
+    }
+
+    .portfolio-card {
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 15px;
+        background: white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .portfolio-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+
+    .portfolio-name {
+        font-size: 1.2em;
+        font-weight: bold;
+    }
+
+    .portfolio-actions {
+        display: flex;
+        gap: 10px;
+    }
+
+    .action-btn {
+        padding: 5px 10px;
+        border-radius: 4px;
+        border: none;
+        cursor: pointer;
+    }
+
+    .edit-btn {
+        background: #2196f3;
+        color: white;
+    }
+
+    .delete-btn {
+        background: #f44336;
+        color: white;
+    }
+
+    .portfolio-detail-item {
+        display: flex;
+        justify-content: space-between;
+        margin: 5px 0;
+    }
+
+    .positive { color: #4caf50; }
+    .negative { color: #f44336; }
+    </style>
 </body>
 </html>

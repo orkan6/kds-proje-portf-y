@@ -10,13 +10,13 @@
     <div class="container">
         <aside class="sidebar">
             <div class="logo">
-                Portfolio+
+                Portfoy
             </div>
             <nav>
                 <a href="anasayfa.html" class="nav-link">Ana Sayfa</a>
                 <a href="portfoy_olustur.html" class="nav-link">Portföy Yönetimi</a>
                 <a href="analiz.html" class="nav-link">Portföy Analizi</a>
-                <a href="#" class="nav-link">Optimizasyon</a>
+                <a href="optimizasyon.html" class="nav-link">Optimizasyon</a>
             </nav>
         </aside>
 
@@ -25,13 +25,33 @@
                 <h1 class="header-title">Portföy Yönetim Paneli</h1>
             </header>
 
-            <section class="dashboard-card">
-                <h3>Portföy Değeri ve Dağılımı</h3>
-                <div class="chart-container">
-                    Grafik alanı
+            <section class="portfolio-list">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Mevcut Portföyler</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Portföy Adı</th>
+                                        <th>Toplam Değer</th>
+                                        <th>İşlemler</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="portfolioList">
+                                    
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </section>
         </main>
     </div>
+
+    
+    <script src="/js/anasayfa.js"></script>
 </body>
 </html>

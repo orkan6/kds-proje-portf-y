@@ -1,21 +1,27 @@
 const express = require('express');
 const path = require('path');
-const app = express();
+const { pool } = require('./db/connection');
+const assetsRouter = require('./routes/assets');
 
-// Middleware'ler
-app.use(express.static(__dirname));
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
 
-// Debug için log middleware'i
-app.use((req, res, next) => {
-    console.log(`${req.method} ${req.url}`);
-    next();
+
+app.use(express.static(path.join(__dirname)));
+app.use('/js', express.static(path.join(__dirname, 'js')));
+app.use('/css', express.static(path.join(__dirname, 'css')));
+app.use('/public', express.static(path.join(__dirname, 'public')));
+
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'anasayfa.html'));
 });
 
-// Ana sayfa route'ları
-app.get('/', (req, res) => {
+app.get('/anasayfa.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'anasayfa.html'));
 });
 
@@ -23,22 +29,61 @@ app.get('/portfoy_olustur.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'portfoy_olustur.html'));
 });
 
-// API route'ları
-const searchRouter = require('./routes/search');
-const assetsRouter = require('./routes/assets');
-
-// Route'ları düzenle
-app.use('/api/search', searchRouter);
-app.use('/api', assetsRouter);  // Tüm portföy işlemleri buradan geçecek
-
-// 404 handler
-app.use((req, res) => {
-    console.log('404 - Route bulunamadı:', req.url);
-    res.status(404).json({ error: 'Sayfa bulunamadı' });  // JSON yanıt döndür
+app.get('/analiz.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'analiz.html'));
 });
 
-// Server'ı başlat
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server http://localhost:${PORT} adresinde çalışıyor...`);
-}); 
+app.get('/optimizasyon.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'optimizasyon.html'));
+});
+
+
+app.use('/api', assetsRouter);
+
+
+async function testConnection() {
+    try {
+        const connection = await pool.getConnection();
+        console.log('Veritabanı bağlantısı başarılı');
+        connection.release();
+    } catch (error) {
+        console.error('Veritabanı bağlantı hatası:', error);
+        process.exit(1);
+    }
+}
+
+
+app.use((req, res) => {
+    console.log('404 - Route bulunamadı:', req.url);
+    res.status(404).json({ error: 'Sayfa bulunamadı' });
+});
+
+
+app.use((err, req, res, next) => {
+    console.error('Sunucu hatası:', err);
+    res.status(500).json({ 
+        error: 'Sunucu hatası',
+        message: err.message 
+    });
+});
+
+
+const server = app.listen(PORT, async () => {
+    await testConnection();
+    console.log(`Sunucu çalışıyor: http://localhost:${PORT}`);
+});
+
+
+server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+        console.error(`Port ${PORT} kullanımda. Farklı bir port deneyin.`);
+        process.exit(1);
+    }
+    console.error('Sunucu hatası:', error);
+});
+
+process.on('unhandledRejection', (err) => {
+    console.error('Yakalanmamış Promise hatası:', err);
+});
+
+module.exports = app; 

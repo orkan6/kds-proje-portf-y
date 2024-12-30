@@ -1,0 +1,151 @@
+/* Simülasyon Kartı Stilleri */
+.simulation-card {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.simulation-card .card-header {
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    padding: 15px;
+    border-radius: 8px 8px 0 0;
+}
+
+.simulation-card .card-body {
+    padding: 20px;
+}
+
+/* Arama Alanı */
+.search-container {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+#searchResults {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.search-result-item {
+    padding: 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+}
+
+.search-result-item:hover {
+    background: #f8f9fa;
+}
+
+/* Portföy Tablosu */
+.simulation-table {
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+.simulation-table th {
+    background: #f8f9fa;
+    padding: 12px;
+    font-weight: 600;
+}
+
+.simulation-table td {
+    padding: 12px;
+    vertical-align: middle;
+}
+
+.weight-input {
+    width: 80px;
+    text-align: right;
+}
+
+/* Risk Toleransı Slider */
+.risk-tolerance-container {
+    margin: 20px 0;
+}
+
+.risk-tolerance-value {
+    text-align: center;
+    font-weight: 600;
+    margin-top: 5px;
+}
+
+/* Simülasyon Sonuçları */
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.metric-card {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 6px;
+    text-align: center;
+}
+
+.metric-card h6 {
+    margin-bottom: 10px;
+    color: #666;
+}
+
+.metric-value {
+    font-size: 1.2em;
+    font-weight: 600;
+    color: #333;
+}
+
+/* Grafikler */
+.charts-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin: 20px 0;
+}
+
+.chart-wrapper {
+    background: white;
+    padding: 15px;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* Butonlar */
+.simulation-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.btn-simulate {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-optimize {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-simulate:hover, .btn-optimize:hover {
+    opacity: 0.9;
+} 

@@ -66,6 +66,10 @@ function addNewAsset() {
     
     // Yeni eklenen input için arama dinleyicisini ekle
     setupAssetSearchListeners(newAssetItem.querySelector('.asset-search-input'));
+    
+    // Miktar değişikliği dinleyicisini ekle
+    const quantityInput = newAssetItem.querySelector('.quantity-input');
+    quantityInput.addEventListener('input', () => calculateAssetValues(newAssetItem));
 }
 
 // Varlık satırını silme
@@ -77,19 +81,94 @@ function removeAsset(button) {
 // Varlık arama fonksiyonu
 async function searchAssets(searchTerm, inputElement) {
     if (!searchTerm || searchTerm.length < 2) {
-        inputElement.nextElementSibling.style.display = 'none';
+        const suggestions = inputElement.nextElementSibling;
+        if (suggestions) {
+            suggestions.style.display = 'none';
+        }
         return;
     }
 
     try {
         const response = await fetch(`/api/search?q=${encodeURIComponent(searchTerm)}`);
-        if (!response.ok) throw new Error('Arama hatası');
+        if (!response.ok) {
+            throw new Error('Arama hatası');
+        }
         
         const results = await response.json();
-        displayResults(results, inputElement.nextElementSibling);
+        displaySearchResults(results, inputElement);
     } catch (err) {
         console.error('Arama hatası:', err);
     }
+}
+
+// Arama sonuçlarını görüntüleme
+function displaySearchResults(results, inputElement) {
+    const suggestions = inputElement.nextElementSibling;
+    if (!suggestions) return;
+
+    suggestions.innerHTML = '';
+    const div = document.createElement('div');
+
+    // Hisse senetleri
+    if (results.stocks && results.stocks.length > 0) {
+        results.stocks.forEach(result => {
+            const item = document.createElement('div');
+            item.className = 'suggestion-item';
+            item.innerHTML = `
+                <div class="suggestion-details">
+                    <div class="suggestion-name">${result.symbol} - ${result.name || 'N/A'}</div>
+                    <div class="suggestion-sector">${result.sector || 'N/A'}</div>
+                </div>
+                <div class="suggestion-price">$${result.price ? result.price.toFixed(2) : '0.00'}</div>
+            `;
+
+            item.addEventListener('click', () => {
+                inputElement.value = result.symbol;
+                inputElement.dataset.symbol = result.symbol;
+                inputElement.dataset.type = 'STOCK';
+                inputElement.dataset.price = result.price || 0;
+                suggestions.style.display = 'none';
+                calculateAssetValues(inputElement.closest('.asset-item'));
+            });
+
+            div.appendChild(item);
+        });
+    }
+
+    // Emtialar
+    if (results.commodities && results.commodities.length > 0) {
+        results.commodities.forEach(result => {
+            const item = document.createElement('div');
+            item.className = 'suggestion-item';
+            item.innerHTML = `
+                <div class="suggestion-details">
+                    <div class="suggestion-name">${result.name}</div>
+                    <div class="suggestion-sector">Emtia</div>
+                </div>
+                <div class="suggestion-price">$${result.price ? result.price.toFixed(2) : '0.00'}</div>
+            `;
+
+            item.addEventListener('click', () => {
+                inputElement.value = result.name;
+                inputElement.dataset.symbol = result.name;
+                inputElement.dataset.type = 'COMMODITY';
+                inputElement.dataset.price = result.price || 0;
+                suggestions.style.display = 'none';
+                calculateAssetValues(inputElement.closest('.asset-item'));
+            });
+
+            div.appendChild(item);
+        });
+    }
+
+    // Sonuç yoksa
+    if ((!results.stocks || results.stocks.length === 0) && 
+        (!results.commodities || results.commodities.length === 0)) {
+        div.innerHTML = '<div class="suggestion-item">Sonuç bulunamadı</div>';
+    }
+
+    suggestions.appendChild(div);
+    suggestions.style.display = 'block';
 }
 
 // Portföy değerlerini hesapla
@@ -134,35 +213,7 @@ function displayPortfolios(portfolios) {
         const card = document.createElement('div');
         card.className = 'portfolio-card';
 
-        // Varlık listesini oluştur
-        let assetsHtml = '<div class="portfolio-assets">';
-        assetsHtml += '<div class="asset-list-title">Varlıklar:</div>';
-        
-        if (portfolio.portfolio_details && portfolio.portfolio_details.length > 0) {
-            assetsHtml += portfolio.portfolio_details.map(asset => `
-                <div class="asset-list-item">
-                    <div class="asset-info">
-                        <span class="asset-symbol">${escapeHtml(asset.asset_symbol)}</span>
-                        <span class="asset-type">${asset.asset_type === 'STOCK' ? 'Hisse' : 'Emtia'}</span>
-                    </div>
-                    <div class="asset-values">
-                        <div class="asset-quantity-value">
-                            ${asset.asset_type === 'STOCK' 
-                                ? `${Number(asset.quantity).toLocaleString()} adet`
-                                : `$${Number(asset.quantity).toLocaleString('tr-TR', {minimumFractionDigits: 2})}`
-                            }
-                        </div>
-                        <div class="asset-weight-value">
-                            %${Number(asset.weight).toFixed(2)}
-                        </div>
-                    </div>
-                </div>
-            `).join('');
-        } else {
-            assetsHtml += '<div class="empty-assets">Varlık bulunamadı</div>';
-        }
-        assetsHtml += '</div>';
-
+        // Kart içeriğini oluştur
         card.innerHTML = `
             <div class="portfolio-header">
                 <div class="portfolio-name">${escapeHtml(portfolio.portfolio_name)}</div>
@@ -177,21 +228,39 @@ function displayPortfolios(portfolios) {
             </div>
             <div class="portfolio-details">
                 <div class="portfolio-detail-item">
-                    <span>Toplam Değer:</span>
+                    <span>Başlangıç Değeri:</span>
                     <span>$${Number(portfolio.initial_value).toLocaleString('tr-TR', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2
                     })}</span>
                 </div>
                 <div class="portfolio-detail-item">
+                    <span>Güncel Değer:</span>
+                    <span>$${Number(portfolio.current_value).toLocaleString('tr-TR', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    })}</span>
+                </div>
+                <div class="portfolio-detail-item">
+                    <span>Getiri:</span>
+                    <span class="${portfolio.return >= 0 ? 'positive' : 'negative'}">
+                        %${(portfolio.return * 100).toFixed(2)}
+                    </span>
+                </div>
+                <div class="portfolio-detail-item">
                     <span>Varlık Sayısı:</span>
-                    <span>${portfolio.portfolio_details?.length || 0}</span>
+                    <span>${portfolio.asset_count}</span>
                 </div>
                 <div class="portfolio-detail-item">
                     <span>Oluşturma Tarihi:</span>
                     <span>${new Date(portfolio.creation_date).toLocaleDateString('tr-TR')}</span>
                 </div>
-                ${assetsHtml}
+                ${portfolio.description ? `
+                    <div class="portfolio-description">
+                        <span>Açıklama:</span>
+                        <p>${escapeHtml(portfolio.description)}</p>
+                    </div>
+                ` : ''}
             </div>
         `;
         grid.appendChild(card);
@@ -211,125 +280,83 @@ function escapeHtml(unsafe) {
         : '';
 }
 
-// Portföyleri yükleme fonksiyonu
+// Portföyleri yükle ve göster
 async function loadPortfolios() {
     try {
         const response = await fetch('/api/portfolios');
-        if (!response.ok) throw new Error('Portföyler getirilemedi');
-        
         const portfolios = await response.json();
-        console.log('Loaded portfolios:', portfolios); // Debug için
-        displayPortfolios(portfolios);
-    } catch (error) {
-        console.error('Portföyleri yükleme hatası:', error);
-    }
-}
-
-// Arama sonuçlarını görüntüleme
-function displayResults(results, suggestionsDiv) {
-    suggestionsDiv.innerHTML = '';
-    let hasResults = false;
-
-    // Hisse senetlerini göster
-    if (results.stocks && results.stocks.length > 0) {
-        hasResults = true;
-        results.stocks.forEach(stock => {
-            const div = document.createElement('div');
-            div.className = 'asset-suggestion-item';
-            div.innerHTML = `
-                <div class="asset-info">
-                    <span class="symbol">${stock.Symbol}</span>
-                    <span class="name">${stock.Shortname}</span>
-                </div>
-                <span class="price">$${Number(stock.Currentprice).toFixed(2)}</span>
-            `;
-            div.onclick = () => selectAsset(stock, 'STOCK', suggestionsDiv.closest('.asset-search').querySelector('input'));
-            suggestionsDiv.appendChild(div);
-        });
-    }
-
-    // Emtiaları göster
-    if (results.commodities) {
-        const commodityData = results.commodities;
-        const searchTerm = suggestionsDiv.closest('.asset-search').querySelector('input').value.toLowerCase();
         
-        // Date dışındaki tüm emtiaları döngüye al
-        Object.entries(commodityData).forEach(([key, value]) => {
-            if (key !== 'Date' && value !== 0 && value !== null && 
-                key.toLowerCase().includes(searchTerm)) {
-                hasResults = true;
-                const div = document.createElement('div');
-                div.className = 'asset-suggestion-item';
-                div.innerHTML = `
-                    <div class="asset-info">
-                        <span class="symbol">${key}</span>
-                        <span class="type">Emtia</span>
-                    </div>
-                    <span class="price">$${Number(value).toFixed(2)}</span>
-                `;
-                div.onclick = () => selectAsset(
-                    { name: key, price: value }, 
-                    'COMMODITY', 
-                    suggestionsDiv.closest('.asset-search').querySelector('input')
-                );
-                suggestionsDiv.appendChild(div);
-            }
-        });
-    }
+        const portfolioList = document.getElementById('portfolioList');
+        if (!portfolioList) {
+            console.error('portfolioList elementi bulunamadı');
+            return;
+        }
+        
+        if (!portfolios || portfolios.length === 0) {
+            portfolioList.innerHTML = '<p class="no-portfolios">Henüz portföy bulunmuyor.</p>';
+            return;
+        }
 
-    suggestionsDiv.style.display = hasResults ? 'block' : 'none';
+        // Her portföy için detay bilgilerini al
+        const portfolioDetails = await Promise.all(
+            portfolios.map(async (portfolio) => {
+                const detailResponse = await fetch(`/api/portfolios/${portfolio.portfolio_id}`);
+                const detail = await detailResponse.json();
+                return {
+                    ...portfolio,
+                    assets: detail.portfolio.assets || []
+                };
+            })
+        );
+
+        const portfolioCards = portfolioDetails.map(portfolio => {
+            const assetsList = portfolio.assets.map(asset => `
+                <div class="asset-item-summary">
+                    <span>${escapeHtml(asset.asset_symbol)}</span>
+                    <span>%${parseFloat(asset.weight).toFixed(0)}</span>
+                </div>
+            `).join('');
+
+            return `
+                <div class="portfolio-card">
+                    <div class="portfolio-header">
+                        <h3>${escapeHtml(portfolio.portfolio_name)}</h3>
+                        <p class="portfolio-date">Oluşturma: ${new Date(portfolio.creation_date).toLocaleDateString()}</p>
+                    </div>
+                    <div class="portfolio-details">
+                        <p>Başlangıç Değeri: $${(portfolio.initial_value || 0).toFixed(2)}</p>
+                        <div class="portfolio-assets">
+                            <h4>Varlıklar:</h4>
+                            ${assetsList || '<p>Varlık bulunmuyor</p>'}
+                        </div>
+                    </div>
+                    <div class="portfolio-actions">
+                        <button onclick="editPortfolio(${portfolio.portfolio_id})" class="btn btn-edit">Düzenle</button>
+                        <button onclick="deletePortfolio(${portfolio.portfolio_id})" class="btn btn-delete">Sil</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        portfolioList.innerHTML = portfolioCards;
+        
+    } catch (err) {
+        console.error('Portföy listesi yüklenirken hata:', err);
+        showError('Portföyler yüklenemedi');
+    }
 }
 
-// Varlık seçildiğinde
-function selectAsset(asset, type, inputElement) {
-    const assetItem = inputElement.closest('.asset-item');
-    
-    // Veri kontrolü
-    console.log('Seçilen varlık bilgileri:', {
-        asset: asset,
-        type: type,
-        price: type === 'STOCK' ? asset.Currentprice : asset.price
-    });
+// Sayfa yüklendiğinde portföyleri getir
+document.addEventListener('DOMContentLoaded', loadPortfolios);
 
-    // Dataset'i temizle ve yeniden ata
-    inputElement.dataset.type = type;
-    inputElement.dataset.symbol = type === 'STOCK' ? asset.Symbol : asset.name;
-    inputElement.dataset.price = type === 'STOCK' ? asset.Currentprice : asset.price;
-
-    if (!inputElement.dataset.type || !inputElement.dataset.symbol || !inputElement.dataset.price) {
-        console.error('Eksik varlık verisi:', {
-            type: inputElement.dataset.type,
-            symbol: inputElement.dataset.symbol,
-            price: inputElement.dataset.price
-        });
-        alert('Varlık bilgileri eksik. Lütfen tekrar seçin.');
-        return;
-    }
-
-    // Input değerini ayarla
-    inputElement.value = type === 'STOCK' ? 
-        `${asset.Shortname} (${asset.Symbol})` : 
-        asset.name;
-
-    // Quantity input'u bul ve ayarla
-    const quantityInput = assetItem.querySelector('.quantity-input');
-    if (quantityInput) {
-        quantityInput.value = '';
-        // Emtia için placeholder'ı değiştir
-        if (type === 'COMMODITY') {
-            quantityInput.placeholder = 'Tutar ($)';
-            quantityInput.dataset.inputType = 'amount';
-        } else {
-            quantityInput.placeholder = 'Adet';
-            quantityInput.dataset.inputType = 'quantity';
-        }
-        quantityInput.addEventListener('input', () => calculateAssetValues(assetItem));
-    }
-
-    // Öneri kutusunu gizle
-    const suggestions = inputElement.nextElementSibling;
-    if (suggestions) {
-        suggestions.style.display = 'none';
+function showError(message) {
+    const errorDiv = document.getElementById('errorMessage');
+    if (errorDiv) {
+        errorDiv.textContent = message;
+        errorDiv.style.display = 'block';
+        setTimeout(() => {
+            errorDiv.style.display = 'none';
+        }, 5000);
     }
 }
 
@@ -353,40 +380,56 @@ function calculateAssetValues(assetItem) {
     const weightSpan = assetItem.querySelector('.weight-value');
     const totalSpan = assetItem.querySelector('.total-value');
     
-    const price = parseFloat(searchInput.dataset.price) || 0;
-    const inputValue = parseFloat(quantityInput.value) || 0;
-    let quantity, totalValue;
-
-    // Emtia için tutar girildiyse miktarı hesapla
-    if (searchInput.dataset.type === 'COMMODITY' && quantityInput.dataset.inputType === 'amount') {
-        totalValue = inputValue; // Girilen değer direkt total value
-        quantity = inputValue; // Artık miktarı çevirmiyoruz
-    } else {
-        quantity = inputValue;
-        totalValue = price * quantity;
+    if (!searchInput?.dataset?.price || !quantityInput?.value) {
+        weightSpan.textContent = '0';
+        totalSpan.textContent = '0';
+        return;
     }
+
+    const price = parseFloat(searchInput.dataset.price) || 0;
+    const isStock = searchInput.dataset.type === 'STOCK';
+    const inputValue = parseFloat(quantityInput.value) || 0;
     
-    // Portföy toplam değerini al
+    // Toplam değeri hesapla
+    const totalValue = isStock ? price * inputValue : inputValue;
+    
     const portfolioSize = parseFloat(document.getElementById('portfolio-size').value) || 0;
     
-    // Ağırlığı hesapla
+    // Ağırlığı hesapla (%)
     const weight = portfolioSize > 0 ? (totalValue / portfolioSize) * 100 : 0;
     
     // Değerleri güncelle
     weightSpan.textContent = weight.toFixed(2);
     totalSpan.textContent = totalValue.toFixed(2);
-
-    // Emtia için birim göster
-    if (searchInput.dataset.type === 'COMMODITY' && quantity > 0) {
-        const commodityUnit = COMMODITY_UNITS[searchInput.dataset.symbol] || 'birim';
-        const quantityInfo = assetItem.querySelector('.quantity-info') || 
-            createQuantityInfoElement(assetItem);
-        quantityInfo.textContent = `${quantity.toFixed(2)} $`;
+    
+    // Birim/adet bilgisini göster
+    const quantityInfo = assetItem.querySelector('.quantity-info') || createQuantityInfoElement(assetItem);
+    if (isStock) {
+        quantityInfo.textContent = `Birim fiyat: $${price.toFixed(2)} | Toplam: $${totalValue.toFixed(2)} | Ağırlık: %${weight.toFixed(2)}`;
+    } else {
+        const units = inputValue / price;
+        quantityInfo.textContent = `Birim fiyat: $${price.toFixed(2)} | Miktar: ${units.toFixed(4)} birim | Ağırlık: %${weight.toFixed(2)}`;
     }
     
-    // Tüm portföyü yeniden hesapla
+    // Portföy toplamlarını güncelle
     calculatePortfolioTotals();
 }
+
+// Miktar değiştiğinde hesaplamayı güncelle
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.quantity-input').forEach(input => {
+        input.addEventListener('input', function() {
+            calculateAssetValues(this.closest('.asset-item'));
+        });
+    });
+
+    // Portföy büyüklüğü değiştiğinde tüm değerleri güncelle
+    document.getElementById('portfolio-size').addEventListener('input', function() {
+        document.querySelectorAll('.asset-item').forEach(item => {
+            calculateAssetValues(item);
+        });
+    });
+});
 
 // Miktar bilgisi elementi oluştur
 function createQuantityInfoElement(assetItem) {
@@ -406,8 +449,8 @@ async function handleFormSubmit(event) {
     try {
         const portfolioData = {
             portfolio_name: document.getElementById('portfolio-name').value,
+            initial_value: parseFloat(document.getElementById('portfolio-size').value),
             description: document.getElementById('description')?.value || '',
-            initial_value: parseFloat(document.getElementById('portfolio-size').value) || 0,
             assets: []
         };
 
@@ -418,27 +461,17 @@ async function handleFormSubmit(event) {
             const weightSpan = item.querySelector('.weight-value');
             
             if (searchInput?.dataset?.symbol && quantityInput?.value) {
-                const inputValue = parseFloat(quantityInput.value);
+                const isStock = searchInput.dataset.type === 'STOCK';
+                const quantity = parseFloat(quantityInput.value);
                 const price = parseFloat(searchInput.dataset.price);
-
-                // Validasyon kontrolleri
-                if (!searchInput.dataset.type || !searchInput.dataset.symbol || 
-                    !inputValue || !price) {
-                    console.log('Eksik veri:', {
-                        type: searchInput.dataset.type,
-                        symbol: searchInput.dataset.symbol,
-                        quantity: inputValue,
-                        price: price
-                    });
-                    throw new Error('Tüm varlık bilgilerinin eksiksiz girildiğinden emin olun');
-                }
+                const weight = parseFloat(weightSpan.textContent);
 
                 portfolioData.assets.push({
-                    type: searchInput.dataset.type,
-                    symbol: searchInput.dataset.symbol,
-                    quantity: inputValue,
-                    price: price,
-                    weight: parseFloat(weightSpan.textContent) || 0
+                    asset_type: searchInput.dataset.type,
+                    asset_symbol: searchInput.dataset.symbol,
+                    quantity: isStock ? quantity : quantity / price,
+                    purchase_price: price,
+                    weight: weight
                 });
             }
         });
@@ -452,19 +485,17 @@ async function handleFormSubmit(event) {
             throw new Error('En az bir varlık eklemelisiniz');
         }
 
-        // Veri kontrolü için log
-        console.log('Gönderilecek veri:', portfolioData);
-
         const response = await fetch('/api/portfolios', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify(portfolioData)
         });
 
-        const result = await response.json();
-        
         if (!response.ok) {
-            throw new Error(result.details || result.error || 'Portföy kaydedilemedi');
+            const error = await response.json();
+            throw new Error(error.details || error.error || 'Portföy kaydedilemedi');
         }
         
         alert('Portföy başarıyla oluşturuldu!');
@@ -472,7 +503,7 @@ async function handleFormSubmit(event) {
         
     } catch (err) {
         console.error('Hata:', err);
-        alert(err.message);
+        showError(err.message);
     }
 }
 
@@ -482,33 +513,38 @@ async function editPortfolio(portfolioId) {
         const response = await fetch(`/api/portfolios/${portfolioId}`);
         if (!response.ok) throw new Error('Portföy yüklenemedi');
         
-        const portfolio = await response.json();
+        const data = await response.json();
+        const portfolio = data.portfolio;
         
         // Form alanlarını doldur
         document.getElementById('portfolio-name').value = portfolio.portfolio_name;
-        document.getElementById('description').value = portfolio.description || '';
         document.getElementById('portfolio-size').value = portfolio.initial_value;
+        document.getElementById('description').value = portfolio.description || '';
         
-        // Mevcut varlıkları temizle
-        document.getElementById('assetList').innerHTML = '';
+        // Varlıkları temizle ve yeniden ekle
+        const assetList = document.getElementById('assetList');
+        assetList.innerHTML = '';
         
-        // Portföy varlıklarını ekle
-        portfolio.portfolio_details.forEach(asset => {
+        portfolio.assets.forEach(asset => {
             addNewAsset();
-            const lastAssetItem = document.querySelector('.asset-item:last-child');
-            const searchInput = lastAssetItem.querySelector('.asset-search-input');
-            const quantityInput = lastAssetItem.querySelector('.quantity-input');
+            const lastItem = assetList.lastElementChild;
             
-            // Varlık bilgilerini doldur
+            const searchInput = lastItem.querySelector('.asset-search-input');
+            const quantityInput = lastItem.querySelector('.quantity-input');
+            
             searchInput.value = asset.asset_symbol;
             searchInput.dataset.type = asset.asset_type;
             searchInput.dataset.symbol = asset.asset_symbol;
             searchInput.dataset.price = asset.purchase_price;
             
-            quantityInput.value = asset.quantity;
+            // Doğru miktarı hesapla
+            const quantity = asset.asset_type === 'STOCK' ? 
+                asset.quantity : 
+                asset.quantity * asset.purchase_price;
             
-            // Değerleri hesapla
-            calculateAssetValues(lastAssetItem);
+            quantityInput.value = quantity;
+            
+            calculateAssetValues(lastItem);
         });
         
         // Form submit işlemini güncelleme olarak değiştir
@@ -590,4 +626,192 @@ async function deletePortfolio(portfolioId) {
         console.error('Portföy silme hatası:', err);
         alert('Portföy silinirken bir hata oluştu');
     }
+}
+
+// Arama sonuçlarını gösterme
+function displayResults(results, suggestionsDiv) {
+    suggestionsDiv.innerHTML = '';
+    let hasResults = false;
+
+    // Hisse senetleri
+    if (results.stocks && results.stocks.length > 0) {
+        hasResults = true;
+        results.stocks.forEach(stock => {
+            const div = document.createElement('div');
+            div.className = 'asset-suggestion-item';
+            div.innerHTML = `${stock.name} (${stock.symbol}) - $${stock.price.toFixed(2)}`;
+            div.onclick = () => selectAsset(stock, 'STOCK', suggestionsDiv.closest('.asset-search').querySelector('input'));
+            suggestionsDiv.appendChild(div);
+        });
+    }
+
+    // Emtialar
+    if (results.commodities && results.commodities.length > 0) {
+        hasResults = true;
+        results.commodities.forEach(commodity => {
+            const div = document.createElement('div');
+            div.className = 'asset-suggestion-item';
+            div.innerHTML = `${commodity.name} - $${commodity.price.toFixed(2)}`;
+            div.onclick = () => selectAsset(commodity, 'COMMODITY', suggestionsDiv.closest('.asset-search').querySelector('input'));
+            suggestionsDiv.appendChild(div);
+        });
+    }
+
+    suggestionsDiv.style.display = hasResults ? 'block' : 'none';
+}
+
+// Varlık seçildiğinde
+function selectAsset(asset, type, inputElement) {
+    const assetItem = inputElement.closest('.asset-item');
+    const quantityInput = assetItem.querySelector('.quantity-input');
+    const quantityLabel = assetItem.querySelector('.quantity-label') || createQuantityLabel(assetItem);
+    
+    inputElement.value = type === 'STOCK' ? 
+        `${asset.name} (${asset.symbol})` : 
+        asset.name;
+    
+    inputElement.dataset.type = type;
+    inputElement.dataset.symbol = type === 'STOCK' ? asset.symbol : asset.name;
+    inputElement.dataset.price = asset.price;
+    
+    // Input tipini güncelle
+    if (type === 'STOCK') {
+        quantityInput.placeholder = 'Adet';
+        quantityInput.step = '1';
+        quantityInput.min = '1';
+        quantityLabel.textContent = 'Adet:';
+    } else {
+        quantityInput.placeholder = 'USD Miktar';
+        quantityInput.step = '0.01';
+        quantityInput.min = '0.01';
+        quantityLabel.textContent = 'USD Miktar:';
+    }
+    
+    // Değerleri hesapla
+    calculateAssetValues(assetItem);
+    
+    // Öneri kutusunu gizle
+    inputElement.nextElementSibling.style.display = 'none';
+}
+
+// Miktar etiketi oluştur
+function createQuantityLabel(assetItem) {
+    const quantityDiv = assetItem.querySelector('.asset-quantity');
+    const label = document.createElement('div');
+    label.className = 'quantity-label';
+    label.style.fontSize = '0.8em';
+    label.style.marginBottom = '4px';
+    quantityDiv.insertBefore(label, quantityDiv.firstChild);
+    return label;
+}
+
+// Portföy toplamlarını hesapla
+function calculatePortfolioTotals() {
+    const portfolioSize = parseFloat(document.getElementById('portfolio-size').value) || 0;
+    let totalInvested = 0;
+    let totalWeight = 0;
+    
+    document.querySelectorAll('.asset-item').forEach(item => {
+        const total = parseFloat(item.querySelector('.total-value').textContent) || 0;
+        const weight = parseFloat(item.querySelector('.weight-value').textContent) || 0;
+        
+        totalInvested += total;
+        totalWeight += weight;
+    });
+    
+    // Toplamları güncelle
+    document.getElementById('total-invested').textContent = totalInvested.toFixed(2);
+    document.getElementById('remaining-amount').textContent = (portfolioSize - totalInvested).toFixed(2);
+    document.getElementById('total-weight').textContent = totalWeight.toFixed(2);
+    
+    // Ağırlık uyarısı
+    if (totalWeight > 100) {
+        showError('Toplam ağırlık %100\'ü geçemez!');
+    }
+}
+
+// Portföy düzenleme
+async function editPortfolio(portfolioId) {
+    try {
+        const response = await fetch(`/api/portfolios/${portfolioId}`);
+        if (!response.ok) throw new Error('Portföy yüklenemedi');
+        
+        const data = await response.json();
+        const portfolio = data.portfolio;
+        
+        // Form alanlarını doldur
+        document.getElementById('portfolio-name').value = portfolio.portfolio_name;
+        document.getElementById('portfolio-size').value = portfolio.initial_value;
+        document.getElementById('description').value = portfolio.description || '';
+        
+        // Varlıkları temizle ve yeniden ekle
+        const assetList = document.getElementById('assetList');
+        assetList.innerHTML = '';
+        
+        portfolio.assets.forEach(asset => {
+            addNewAsset();
+            const lastItem = assetList.lastElementChild;
+            
+            const searchInput = lastItem.querySelector('.asset-search-input');
+            const quantityInput = lastItem.querySelector('.quantity-input');
+            
+            searchInput.value = asset.asset_symbol;
+            searchInput.dataset.type = asset.asset_type;
+            searchInput.dataset.symbol = asset.asset_symbol;
+            searchInput.dataset.price = asset.purchase_price;
+            
+            // Doğru miktarı hesapla
+            const quantity = asset.asset_type === 'STOCK' ? 
+                asset.quantity : 
+                asset.quantity * asset.purchase_price;
+            
+            quantityInput.value = quantity;
+            
+            calculateAssetValues(lastItem);
+        });
+        
+    } catch (error) {
+        showError('Portföy yüklenirken hata oluştu: ' + error.message);
+    }
+}
+
+// Portföy silme
+async function deletePortfolio(portfolioId) {
+    if (!confirm('Bu portföyü silmek istediğinizden emin misiniz?')) return;
+    
+    try {
+        const response = await fetch(`/api/portfolios/${portfolioId}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) throw new Error('Silme işlemi başarısız');
+        
+        // Portföy listesini yenile
+        loadPortfolios();
+        showSuccess('Portföy başarıyla silindi');
+        
+    } catch (error) {
+        showError('Portföy silinirken hata oluştu: ' + error.message);
+    }
+}
+
+// Hata gösterme
+function showError(message) {
+    const errorDiv = document.getElementById('errorMessage');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+    setTimeout(() => {
+        errorDiv.style.display = 'none';
+    }, 5000);
+}
+
+// Başarı mesajı gösterme
+function showSuccess(message) {
+    const successDiv = document.createElement('div');
+    successDiv.className = 'success-message';
+    successDiv.textContent = message;
+    document.body.appendChild(successDiv);
+    setTimeout(() => {
+        successDiv.remove();
+    }, 3000);
 }

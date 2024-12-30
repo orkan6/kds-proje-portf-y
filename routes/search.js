@@ -9,7 +9,7 @@ router.get('/', async (req, res) => {
             return res.json({ stocks: [], commodities: [] });
         }
 
-        // Hisse senetlerini ara
+        
         const stocks = await query(`
             SELECT Symbol, Shortname, Currentprice 
             FROM sp500_companies 
@@ -17,7 +17,7 @@ router.get('/', async (req, res) => {
             LIMIT 10
         `, [`%${searchTerm}%`, `%${searchTerm}%`]);
 
-        // Emtiaları ara
+        
         const commodities = await query(`
             SELECT * FROM commodity_futures 
             WHERE Date = (SELECT MAX(Date) FROM commodity_futures)

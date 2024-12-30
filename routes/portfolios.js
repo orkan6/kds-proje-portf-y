@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../db/connection');
 
-// Tüm portföyleri getir
+
 router.get('/', async (req, res) => {
     try {
         const portfolios = await query(`
@@ -26,7 +26,7 @@ router.get('/', async (req, res) => {
     }
 });
 
-// Yeni portföy oluştur
+
 router.post('/', async (req, res) => {
     try {
         const { portfolio_name, description, initial_value, assets } = req.body;
@@ -40,7 +40,7 @@ router.post('/', async (req, res) => {
 
         const portfolioId = result.insertId;
 
-        // 2. Portföy detaylarını kaydet
+        
         for (const asset of assets) {
             await query(`
                 INSERT INTO portfolio_details 
@@ -56,7 +56,7 @@ router.post('/', async (req, res) => {
             ]);
         }
 
-        // 3. İlk portföy değerini history'ye kaydet
+        
         await query(`
             INSERT INTO portfolio_history 
             (portfolio_id, date, portfolio_value, daily_return, total_return)
@@ -78,18 +78,18 @@ router.post('/', async (req, res) => {
     }
 });
 
-// Portföy sil
+
 router.delete('/:id', async (req, res) => {
     try {
         const portfolioId = req.params.id;
 
-        // Önce detayları sil
+        
         await query('DELETE FROM portfolio_details WHERE portfolio_id = ?', [portfolioId]);
         
-        // Sonra history'yi sil
+        
         await query('DELETE FROM portfolio_history WHERE portfolio_id = ?', [portfolioId]);
         
-        // En son portföyü sil
+        
         await query('DELETE FROM portfolios WHERE portfolio_id = ?', [portfolioId]);
 
         res.json({ success: true, message: 'Portföy başarıyla silindi' });
@@ -99,12 +99,12 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
-// Tek bir portföyü getir
+
 router.get('/:id', async (req, res) => {
     try {
         const portfolioId = req.params.id;
         
-        // Ana portföy bilgilerini getir
+        
         const [portfolio] = await query(`
             SELECT * FROM portfolios 
             WHERE portfolio_id = ?
@@ -114,7 +114,7 @@ router.get('/:id', async (req, res) => {
             return res.status(404).json({ error: 'Portföy bulunamadı' });
         }
 
-        // Portföy detaylarını getir
+        
         const assets = await query(`
             SELECT 
                 pd.asset_type,
@@ -128,7 +128,7 @@ router.get('/:id', async (req, res) => {
 
         portfolio.assets = assets;
 
-        // Örnek tarihsel veriler (gerçek uygulamada API'den alınacak)
+        // Örnek tarihsel veri
         portfolio.historicalData = {
             dates: ['2023-01-01', '2023-01-02', '2023-01-03'],
             prices: [100, 102, 101],
@@ -142,13 +142,13 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// Portföy güncelle
+// güncelleme
 router.put('/:id', async (req, res) => {
     try {
         const portfolioId = req.params.id;
         const { portfolio_name, description, initial_value, assets } = req.body;
 
-        // Ana portföy bilgilerini güncelle
+        
         await query(`
             UPDATE portfolios 
             SET portfolio_name = ?, 
@@ -157,10 +157,10 @@ router.put('/:id', async (req, res) => {
             WHERE portfolio_id = ?
         `, [portfolio_name, description, initial_value, portfolioId]);
 
-        // Mevcut varlıkları sil
+        
         await query('DELETE FROM portfolio_details WHERE portfolio_id = ?', [portfolioId]);
 
-        // Yeni varlıkları ekle
+        
         for (const asset of assets) {
             await query(`
                 INSERT INTO portfolio_details 
@@ -190,12 +190,12 @@ router.put('/:id', async (req, res) => {
     }
 });
 
-// Portföy analizi endpoint'i
+
 router.get('/:id/analysis', async (req, res) => {
     try {
         const portfolioId = req.params.id;
         
-        // Ana portföy bilgilerini getir
+        
         const [portfolio] = await query(`
             SELECT 
                 p.*,
@@ -213,7 +213,7 @@ router.get('/:id/analysis', async (req, res) => {
             return res.status(404).json({ error: 'Portföy bulunamadı' });
         }
 
-        // Varlık detaylarını getir
+        
         const assets = await query(`
             SELECT 
                 pd.asset_symbol,
@@ -230,7 +230,7 @@ router.get('/:id/analysis', async (req, res) => {
             ORDER BY pd.asset_symbol, h.date
         `, [portfolioId]);
 
-        // Varlıkları grupla ve tarihsel verileri düzenle
+        
         const assetData = {};
         assets.forEach(asset => {
             if (!assetData[asset.asset_symbol]) {
@@ -252,7 +252,7 @@ router.get('/:id/analysis', async (req, res) => {
             }
         });
 
-        // Analiz metriklerini hesapla
+        
         const analysisResults = {
             portfolio: portfolio,
             assets: Object.values(assetData),
@@ -271,7 +271,7 @@ router.get('/:id/analysis', async (req, res) => {
     }
 });
 
-// Yardımcı fonksiyonlar
+
 function calculateTotalValue(assetData) {
     let total = 0;
     Object.values(assetData).forEach(asset => {
@@ -302,7 +302,7 @@ function calculatePerformance(assetData) {
 }
 
 function calculateRiskMetrics(assetData) {
-    // Beta, Alpha ve diğer risk metriklerini hesapla
+    
     const assets = Object.values(assetData);
     const returns = assets.map(asset => {
         const prices = asset.priceHistory.map(h => h.price);
@@ -315,7 +315,7 @@ function calculateRiskMetrics(assetData) {
     };
 }
 
-// Matematiksel hesaplama fonksiyonları
+
 function calculateReturns(prices) {
     const returns = [];
     for (let i = 1; i < prices.length; i++) {
@@ -331,12 +331,12 @@ function calculateVolatility(returns) {
 }
 
 function calculateSharpeRatio(return_, volatility) {
-    const riskFreeRate = 0.035; // %3.5 varsayılan risksiz faiz oranı
+    const riskFreeRate = 0.0475; // fed faiz
     return (return_ - riskFreeRate) / volatility;
 }
 
 function calculateBeta(returns) {
-    // Piyasa verilerini al ve beta hesapla
+    
     return 1.0; // Örnek değer
 }
 

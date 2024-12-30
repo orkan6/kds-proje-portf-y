@@ -1,397 +1,275 @@
-// Sayfa yüklendiğinde portföyleri getir
-document.addEventListener('DOMContentLoaded', async function() {
+// Analiz sayfası için JavaScript
+document.addEventListener('DOMContentLoaded', async () => {
     await loadPortfolios();
+    setupEventListeners();
+    setupCharts();
 });
 
-// Portföyleri yükle ve select'e ekle
+// Portföyleri yükle
 async function loadPortfolios() {
     try {
         const response = await fetch('/api/portfolios');
         const portfolios = await response.json();
         
-        const portfolioSelect = document.getElementById('portfolioSelect');
-        if (!portfolioSelect) {
-            console.error('Portföy seçim elementi bulunamadı');
-            return;
-        }
-
-        // Önceki event listener'ları temizle
-        const newSelect = portfolioSelect.cloneNode(true);
-        portfolioSelect.parentNode.replaceChild(newSelect, portfolioSelect);
-        
-        // Select'i doldur
-        newSelect.innerHTML = '<option value="">Portföy seçiniz...</option>';
-        portfolios.forEach(portfolio => {
-            const option = document.createElement('option');
-            option.value = portfolio.portfolio_id;
-            option.textContent = portfolio.portfolio_name;
-            newSelect.appendChild(option);
-        });
-
-        // Yeni event listener ekle
-        newSelect.addEventListener('change', async function() {
-            const portfolioId = this.value;
-            if (!portfolioId) {
-                resetAnalysis();
-                return;
-            }
-
-            try {
-                // Loading durumunu göster
-                document.querySelectorAll('.metric-value').forEach(el => {
-                    el.textContent = '';
-                });
-
-                const response = await fetch(`/api/portfolios/${portfolioId}/analysis`);
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.details || data.error || 'Analiz verileri alınamadı');
-                }
-                
-                if (!data.assets || data.assets.length === 0) {
-                    throw new Error('Portföyde varlık bulunamadı');
-                }
-                
-                updateAnalysisDisplay(data);
-                
-            } catch (err) {
-                console.error('Analiz hatası:', err);
-                alert(`Portföy analizi yapılırken bir hata oluştu: ${err.message}`);
-                resetAnalysis();
-            }
-        });
-
+        const select = document.getElementById('portfolioSelect');
+        select.innerHTML = '<option value="">Portföy seçiniz...</option>' +
+            portfolios.map(p => `
+                <option value="${p.portfolio_id}">${p.portfolio_name}</option>
+            `).join('');
     } catch (error) {
-        console.error('Portföy listesi yükleme hatası:', error);
-        alert('Portföyler yüklenirken bir hata oluştu');
+        console.error('Portföy listesi yüklenirken hata:', error);
     }
 }
 
-// Analiz verilerini göster
-function updateAnalysisDisplay(analysis) {
+// Event listener'ları ayarla
+function setupEventListeners() {
+    // Portföy seçimi değiştiğinde
+    document.getElementById('portfolioSelect').addEventListener('change', async (e) => {
+        const portfolioId = e.target.value;
+        if (portfolioId) {
+            await loadPortfolioAnalysis(portfolioId);
+        }
+    });
+
+    // Metrik kartları için dropdown
+    document.querySelectorAll('.metric-card').forEach(card => {
+        card.addEventListener('click', () => {
+            card.classList.toggle('active');
+        });
+    });
+}
+
+// Portföy analizini yükle
+async function loadPortfolioAnalysis(portfolioId) {
     try {
-        if (!analysis) {
-            console.error('Analiz verisi boş');
-            return;
+        // Analiz verilerini al
+        const response = await fetch(`/api/portfolios/${portfolioId}/analysis`);
+        if (!response.ok) throw new Error('Analiz verisi alınamadı');
+        const analysis = await response.json();
+        
+        // Performans verilerini al
+        const perfResponse = await fetch(`/api/portfolios/${portfolioId}/performance`);
+        if (!perfResponse.ok) throw new Error('Performans verisi alınamadı');
+        const performance = await perfResponse.json();
+        
+        // Metrikleri güncelle
+        updateMetrics(analysis);
+        
+        // Performans grafiğini güncelle
+        updatePerformanceChart('performanceChart', performance);
+        
+        // Risk metriklerini güncelle
+        updateRiskMetrics(analysis);
+        
+        // Korelasyon matrisini güncelle - portfolioId gönder
+        await updateCorrelationMatrix(portfolioId);
+    } catch (error) {
+        console.error('Analiz yüklenirken hata:', error);
+    }
+}
+
+// Performans grafiğini güncelle
+function updatePerformanceChart(chartId, performanceData) {
+    const ctx = document.getElementById(chartId)?.getContext('2d');
+    if (!ctx) return;
+
+    const existingChart = Chart.getChart(ctx);
+    if (existingChart) {
+        existingChart.destroy();
+    }
+
+    return new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: performanceData.dates,
+            datasets: [
+                {
+                    label: 'Portföy Performansı',
+                    data: performanceData.portfolio,
+                    borderColor: '#4CAF50',
+                    tension: 0.1,
+                    fill: false,
+                    pointRadius: 0
+                },
+                {
+                    label: 'S&P 500',
+                    data: performanceData.market,
+                    borderColor: '#2196F3',
+                    tension: 0.1,
+                    fill: false,
+                    pointRadius: 0,
+                    borderDash: [5, 5]
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Portföy Performans Karşılaştırması (Baz 100)'
+                },
+                legend: {
+                    position: 'top'
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.dataset.label}: ${context.parsed.y.toFixed(2)}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        unit: 'month',
+                        displayFormats: {
+                            month: 'MMM yyyy'
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Tarih'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Performans (Baz 100)'
+                    },
+                    ticks: {
+                        callback: value => value.toFixed(0)
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Grafikleri ayarla
+function setupCharts() {
+    if (typeof Chart !== 'undefined') {
+        Chart.defaults.font.family = "'Inter', sans-serif";
+        Chart.defaults.color = '#64748b';
+        Chart.defaults.scale.grid.color = '#e2e8f0';
+    }
+}
+
+// Metrikleri güncelle
+function updateMetrics(analysis) {
+    try {
+        // Beklenen getiri
+        const expectedReturn = analysis.expectedReturn || 0;
+        const expectedReturnElement = document.getElementById('expectedReturnCurrent');
+        if (expectedReturnElement) {
+            expectedReturnElement.textContent = `${(expectedReturn * 100).toFixed(2)}%`;
+        }
+        
+        // Volatilite
+        const volatility = analysis.volatility || 0;
+        const volatilityElement = document.getElementById('volatilityCurrent');
+        if (volatilityElement) {
+            volatilityElement.textContent = `${(volatility * 100).toFixed(2)}%`;
+        }
+        
+        // Sharpe oranı
+        const sharpeRatio = analysis.sharpeRatio || 0;
+        const sharpeElement = document.getElementById('sharpeRatioCurrent');
+        if (sharpeElement) {
+            sharpeElement.textContent = sharpeRatio.toFixed(2);
+        }
+        
+        // Treynor oranı
+        const treynorRatio = analysis.treynorRatio || 0;
+        const treynorElement = document.getElementById('treynorRatioCurrent');
+        if (treynorElement) {
+            treynorElement.textContent = treynorRatio.toFixed(2);
+        }
+    } catch (error) {
+        console.error('Metrik güncelleme hatası:', error);
+    }
+}
+
+// Risk metriklerini güncelle
+function updateRiskMetrics(analysis) {
+    try {
+        if (!analysis.metrics) return;
+
+        // Beta değeri
+        const betaElement = document.getElementById('betaValue');
+        if (betaElement) {
+            betaElement.textContent = (analysis.metrics.beta || 0).toFixed(2);
         }
 
-        // Beklenen getirileri ve volatiliteleri formatla
-        const expectedReturns = {
-            '1M': (analysis.expected_portfolio_returns['1M'] * 100).toFixed(2),
-            '3M': (analysis.expected_portfolio_returns['3M'] * 100).toFixed(2),
-            '6M': (analysis.expected_portfolio_returns['6M'] * 100).toFixed(2),
-            '1Y': (analysis.expected_portfolio_returns['1Y'] * 100).toFixed(2)
+        // Alpha değerleri
+        const alphaElements = {
+            'alphaValue': analysis.metrics.alpha,
+            'alpha6M': analysis.metrics.alpha6M,
+            'alpha3M': analysis.metrics.alpha3M
         };
 
-        const volatilities = {
-            '1M': (analysis.portfolio_volatilities['1M'] * 100).toFixed(2),
-            '3M': (analysis.portfolio_volatilities['3M'] * 100).toFixed(2),
-            '6M': (analysis.portfolio_volatilities['6M'] * 100).toFixed(2),
-            '1Y': (analysis.portfolio_volatilities['1Y'] * 100).toFixed(2)
-        };
-
-        // Risk metriklerini güncelle
-        const riskElements = {
-            'betaValue': analysis.risk_metrics?.beta?.toFixed(2) || '-',
-            'beta6M': analysis.risk_metrics?.beta_6m?.toFixed(2) || '-',
-            'beta3M': analysis.risk_metrics?.beta_3m?.toFixed(2) || '-',
-            'alphaValue': (analysis.risk_metrics?.alpha['1Y'] * 100).toFixed(2) + '%' || '-',
-            'alpha6M': (analysis.risk_metrics?.alpha['6M'] * 100).toFixed(2) + '%' || '-',
-            'alpha3M': (analysis.risk_metrics?.alpha['3M'] * 100).toFixed(2) + '%' || '-'
-        };
-
-        // Sharpe ve Treynor oranlarını güncelle
-        Object.entries(analysis.performance_ratios.sharpe).forEach(([period, value]) => {
-            const element = document.getElementById(`sharpeRatio${period}`);
-            if (element) {
-                element.textContent = value.toFixed(2);
-            }
-        });
-
-        Object.entries(analysis.performance_ratios.treynor).forEach(([period, value]) => {
-            const element = document.getElementById(`treynorRatio${period}`);
-            if (element) {
-                element.textContent = value.toFixed(2);
-            }
-        });
-
-        // Varsayılan değerleri güncelle (1Y)
-        document.getElementById('sharpeRatioCurrent').textContent = 
-            analysis.performance_ratios.sharpe['1Y'].toFixed(2);
-        document.getElementById('treynorRatioCurrent').textContent = 
-            analysis.performance_ratios.treynor['1Y'].toFixed(2);
-
-        // DOM elementlerini güncelle
-        const elements = {
-            'expectedReturn1M': expectedReturns['1M'] + '%',
-            'expectedReturn3M': expectedReturns['3M'] + '%',
-            'expectedReturn6M': expectedReturns['6M'] + '%',
-            'expectedReturn1Y': expectedReturns['1Y'] + '%',
-            'volatility1M': volatilities['1M'] + '%',
-            'volatility3M': volatilities['3M'] + '%',
-            'volatility6M': volatilities['6M'] + '%',
-            'volatility1Y': volatilities['1Y'] + '%',
-            ...riskElements
-        };
-
-        Object.entries(elements).forEach(([id, value]) => {
+        Object.entries(alphaElements).forEach(([id, value]) => {
             const element = document.getElementById(id);
-            if (element) element.textContent = value;
+            if (element) {
+                element.textContent = value ? `${(value * 100).toFixed(2)}%` : '-';
+            }
         });
-
-        // Korelasyon matrisini güncelle
-        updateCorrelationMatrix(analysis.correlation_matrix);
-
-        // Performans grafiğini güncelle
-        updatePerformanceChart(analysis);
-
-    } catch (err) {
-        console.error('Metrik güncelleme hatası:', err);
+    } catch (error) {
+        console.error('Risk metrikleri güncelleme hatası:', error);
     }
 }
 
 // Korelasyon matrisini güncelle
-function updateCorrelationMatrix(correlationData) {
-    const table = document.getElementById('correlationMatrix');
-    if (!table || !correlationData || !correlationData.assets) {
-        console.warn('Korelasyon matrisi için gerekli veriler eksik');
-        return;
-    }
-
-    const { assets, matrix } = correlationData;
-
-    // Başlık satırını oluştur
-    const thead = table.querySelector('thead tr');
-    thead.innerHTML = '<th>Varlık</th>' + assets.map(symbol => 
-        `<th>${symbol || 'N/A'}</th>`
-    ).join('');
-
-    // Matris satırlarını oluştur
-    const tbody = table.querySelector('tbody');
-    tbody.innerHTML = matrix.map((row, i) => `
-        <tr>
-            <td><strong>${assets[i] || 'N/A'}</strong></td>
-            ${row.map((value, j) => {
-                const formattedValue = parseFloat(value).toFixed(2);
-                const cellClass = i === j ? 'correlation-perfect' : getCorrelationClass(value);
-                return `
-                    <td class="${cellClass}">
-                        ${formattedValue}
-                    </td>
-                `;
-            }).join('')}
-        </tr>
-    `).join('');
-}
-
-// Korelasyon değerine göre renk sınıfı belirle
-function getCorrelationClass(value) {
-    if (value === 1) return 'correlation-perfect';
-    if (value >= 0.7) return 'correlation-high-positive';
-    if (value >= 0.3) return 'correlation-moderate-positive';
-    if (value > -0.3) return 'correlation-neutral';
-    if (value > -0.7) return 'correlation-moderate-negative';
-    return 'correlation-high-negative';
-}
-
-// Performans grafiğini güncelle
-function updatePerformanceChart(analysis) {
+async function updateCorrelationMatrix(portfolioId) {
     try {
-        const canvas = document.getElementById('performanceChart');
-        if (!canvas) {
-            console.warn('Grafik canvas elementi bulunamadı');
-            return;
-        }
+        const response = await fetch(`/api/portfolios/${portfolioId}/correlation`);
+        if (!response.ok) throw new Error('Korelasyon verisi alınamadı');
+        const data = await response.json();
 
-        // Mevcut grafiği temizle
-        if (window.performanceChart instanceof Chart) {
-            window.performanceChart.destroy();
-            window.performanceChart = null;  // Referansı temizle
-        }
+        const table = document.getElementById('correlationMatrix');
+        if (!table) return;
 
-        const ctx = canvas.getContext('2d');
+        // Başlık satırı
+        let headerRow = '<th></th>';
+        data.symbols.forEach(symbol => {
+            headerRow += `<th>${symbol}</th>`;
+        });
 
-        // Veri kontrolü
-        if (!analysis.assets || analysis.assets.length === 0) {
-            console.warn('Grafik için veri bulunamadı');
-            return;
-        }
-
-        // Tarih ve fiyat verilerini hazırla
-        let allDates = new Set();
-        const prices = {};
-        
-        // Her varlık için fiyat geçmişini işle ve tüm tarihleri topla
-        analysis.assets.forEach(asset => {
-            if (asset.price_history && asset.price_history.length > 0) {
-                prices[asset.symbol] = {};
-                asset.price_history.forEach(history => {
-                    // Tarihi doğru formatta parse et
-                    const date = typeof history.date === 'string' ? 
-                        new Date(history.date.replace(' ', 'T')) : 
-                        new Date(history.date);
+        // Veri satırları
+        let rows = '';
+        data.matrix.forEach((row, i) => {
+            rows += `<tr>
+                <td>${data.symbols[i]}</td>
+                ${row.map(value => {
+                    let cellClass = '';
+                    if (value === 1) cellClass = 'correlation-perfect';
+                    else if (value >= 0.7) cellClass = 'correlation-high-positive';
+                    else if (value >= 0.3) cellClass = 'correlation-moderate-positive';
+                    else if (value > -0.3) cellClass = 'correlation-neutral';
+                    else if (value > -0.7) cellClass = 'correlation-moderate-negative';
+                    else cellClass = 'correlation-high-negative';
                     
-                    if (isNaN(date.getTime())) {
-                        console.warn('Geçersiz tarih:', history.date);
-                        return;
-                    }
-
-                    allDates.add(date.getTime());
-                    prices[asset.symbol][date.getTime()] = history.price;
-                });
-            }
+                    return `<td class="${cellClass}">${value}</td>`;
+                }).join('')}
+            </tr>`;
         });
 
-        // Tarihleri sırala
-        const sortedDates = Array.from(allDates).sort((a, b) => a - b);
+        // Tabloyu güncelle
+        table.innerHTML = `
+            <thead>
+                <tr>${headerRow}</tr>
+            </thead>
+            <tbody>
+                ${rows}
+            </tbody>
+        `;
 
-        // Dataset'leri oluştur
-        const datasets = Object.keys(prices).map(symbol => {
-            const data = sortedDates.map(timestamp => ({
-                x: new Date(timestamp),  // Timestamp'i Date objesine çevir
-                y: prices[symbol][timestamp] || null
-            }));
-
-            return {
-                label: symbol,
-                data: data,
-                borderColor: getRandomColor(),
-                tension: 0.1,
-                fill: false,
-                pointRadius: 0  // Noktaları gizle
-            };
-        });
-
-        // Yeni grafik oluştur
-        window.performanceChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                datasets: datasets
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: {
-                    intersect: false,
-                    mode: 'index'
-                },
-                plugins: {
-                    title: {
-                        display: true,
-                        text: 'Varlık Fiyat Performansı'
-                    },
-                    legend: {
-                        display: true,
-                        position: 'top'
-                    },
-                    tooltip: {
-                        mode: 'index',
-                        intersect: false
-                    }
-                },
-                scales: {
-                    x: {
-                        type: 'time',
-                        time: {
-                            unit: 'month',
-                            displayFormats: {
-                                month: 'MMM yyyy'  // YYYY yerine yyyy kullan
-                            },
-                            tooltipFormat: 'dd MMM yyyy'
-                        },
-                        display: true,
-                        title: {
-                            display: true,
-                            text: 'Tarih'
-                        }
-                    },
-                    y: {
-                        display: true,
-                        title: {
-                            display: true,
-                            text: 'Fiyat ($)'
-                        },
-                        ticks: {
-                            callback: function(value) {
-                                return '$' + value.toLocaleString();
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    } catch (err) {
-        console.error('Grafik güncelleme hatası:', err);
+    } catch (error) {
+        console.error('Korelasyon matrisi güncelleme hatası:', error);
     }
 }
-
-// Rastgele renk üret
-function getRandomColor() {
-    const colors = [
-        '#4CAF50', '#2196F3', '#9C27B0', '#FF9800', '#E91E63',
-        '#00BCD4', '#FFC107', '#3F51B5', '#795548', '#607D8B'
-    ];
-    return colors[Math.floor(Math.random() * colors.length)];
-}
-
-// Analiz verilerini sıfırla
-function resetAnalysis() {
-    const elements = [
-        'totalReturn', 'volatility', 'sharpeRatio',
-        'betaValue', 'alphaValue', 'rSquaredValue'
-    ];
-
-    elements.forEach(id => {
-        const element = document.getElementById(id);
-        if (element) {
-            element.textContent = '-';
-        }
-    });
-
-    // Grafiği temizle
-    const canvas = document.getElementById('performanceChart');
-    if (canvas && window.performanceChart instanceof Chart) {
-        window.performanceChart.destroy();
-        window.performanceChart = null;
-    }
-}
-
-// Dropdown işlevselliği için event listener'ları ekle
-document.addEventListener('DOMContentLoaded', function() {
-    // Dropdown kartları için click event'lerini ekle
-    document.querySelectorAll('.metric-card.dropdown').forEach(card => {
-        card.addEventListener('click', function() {
-            this.classList.toggle('active');
-        });
-    });
-
-    // Dropdown item'ları için click event'lerini ekle
-    document.querySelectorAll('.dropdown-item').forEach(item => {
-        item.addEventListener('click', function(e) {
-            e.stopPropagation(); // Kartın click event'ini engelle
-            const period = this.dataset.period;
-            const value = this.querySelector('span:last-child').textContent;
-            
-            // Ana değeri güncelle
-            const card = this.closest('.metric-card');
-            const mainValue = card.querySelector('.metric-value');
-            mainValue.textContent = value;
-            
-            // Aktif dönemi işaretle
-            card.querySelectorAll('.dropdown-item').forEach(di => {
-                di.classList.remove('active');
-            });
-            this.classList.add('active');
-        });
-    });
-
-    // Sayfa dışı tıklamalarda dropdown'ları kapat
-    document.addEventListener('click', function(e) {
-        if (!e.target.closest('.metric-card.dropdown')) {
-            document.querySelectorAll('.metric-card.dropdown').forEach(card => {
-                card.classList.remove('active');
-            });
-        }
-    });
-});

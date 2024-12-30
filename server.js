@@ -2,7 +2,7 @@ const express = require('express');
 const mysql = require('mysql2/promise');
 const router = express.Router();
 
-// MySQL bağlantı havuzu oluştur
+// MySQL bağlantısı
 const pool = mysql.createPool({
     host: 'localhost',
     user: 'root',
@@ -13,57 +13,65 @@ const pool = mysql.createPool({
     queueLimit: 0
 });
 
-// Varlık arama endpoint'i
+// Varlık ara 
 router.get('/api/search', async (req, res) => {
     try {
         const searchTerm = req.query.q.toLowerCase();
         console.log('Aranan terim:', searchTerm);
         
-        // SP500 hisselerini ara
-        const stocksQuery = `
-            SELECT Symbol, Shortname, Currentprice 
+        // SP500 ara
+        const [stocks] = await pool.query(`
+            SELECT 
+                Symbol, 
+                Shortname, 
+                Sector,
+                Industry,
+                Currentprice 
             FROM sp500_companies 
-            WHERE LOWER(Symbol) LIKE LOWER(?) 
-            OR LOWER(Shortname) LIKE LOWER(?)
+            WHERE LOWER(Symbol) LIKE ? 
+                OR LOWER(Shortname) LIKE ?
+                OR LOWER(Sector) LIKE ?
             LIMIT 10
-        `;
-        
-        // Emtiaları getir
-        const commoditiesQuery = `
-            SELECT * FROM commodity_futures 
-            WHERE Date = (SELECT MAX(Date) FROM commodity_futures)
-        `;
+        `, [`%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`]);
 
-        const [stocks] = await pool.query(stocksQuery, [`%${searchTerm}%`, `%${searchTerm}%`]);
-        const [commodities] = await pool.query(commoditiesQuery);
+        // Emtia
+        const [commodities] = await pool.query(`
+            SELECT * 
+            FROM commodity_futures 
+            WHERE Date = (
+                SELECT MAX(Date) 
+                FROM commodity_futures
+            )
+        `);
 
-        console.log('Ham emtia verisi:', commodities[0]); // İlk emtia kaydını göster
-
-        // Emtiaları diziye çevir
-        let commoditiesList = [];
-        
+        // Emtia filtrele
+        let commodityList = [];
         if (commodities.length > 0) {
             const commodityData = commodities[0];
-            for (let [key, value] of Object.entries(commodityData)) {
-                // Date alanını atla ve null/0 değerleri filtrele
-                if (key !== 'Date' && value !== null && value !== 0) {
-                    // Emtia adı aranan terimi içeriyorsa listeye ekle
+            Object.entries(commodityData).forEach(([key, value]) => {
+                if (key !== 'Date' && value !== null && value > 0) {
                     if (key.toLowerCase().includes(searchTerm)) {
-                        commoditiesList.push({
+                        commodityList.push({
                             name: key,
-                            price: parseFloat(value),
-                            type: 'COMMODITY'
+                            price: parseFloat(value)
                         });
                     }
                 }
-            }
+            });
         }
 
-        console.log('İşlenmiş emtia listesi:', commoditiesList);
+        console.log('Bulunan hisseler:', stocks);
+        console.log('Bulunan emtialar:', commodityList);
 
         res.json({
-            stocks: stocks,
-            commodities: commoditiesList
+            stocks: stocks.map(stock => ({
+                symbol: stock.Symbol,
+                name: stock.Shortname,
+                sector: stock.Sector,
+                industry: stock.Industry,
+                price: parseFloat(stock.Currentprice)
+            })),
+            commodities: commodityList
         });
 
     } catch (error) {
@@ -75,12 +83,12 @@ router.get('/api/search', async (req, res) => {
     }
 });
 
-// Portföy ekleme endpoint'i
+// Portföy ekleme 
 router.post('/api/portfolios', async (req, res) => {
     const connection = await pool.getConnection();
     
     try {
-        // Zorunlu alanları kontrol et
+        
         if (!req.body.portfolio_name || !req.body.initial_value) {
             throw new Error('Portföy adı ve başlangıç değeri zorunludur');
         }
@@ -95,12 +103,12 @@ router.post('/api/portfolios', async (req, res) => {
         );
 
         const portfolioId = portfolio.insertId;
-        console.log('Portföy ID:', portfolioId); // Debug için
+        console.log('Portföy ID:', portfolioId); 
 
         // Portföy detaylarını ekle
         if (req.body.assets && req.body.assets.length > 0) {
             for (const asset of req.body.assets) {
-                // Her bir varlık için zorunlu alanları kontrol et
+                
                 if (!asset.type || !asset.symbol || !asset.quantity || !asset.weight || !asset.price) {
                     throw new Error('Eksik varlık bilgisi');
                 }
@@ -114,7 +122,7 @@ router.post('/api/portfolios', async (req, res) => {
                     asset.price
                 ];
 
-                console.log('SQL parametreleri:', params); // Debug için
+                console.log('SQL parametreleri:', params); 
 
                 await connection.query(`
                     INSERT INTO portfolio_details 
@@ -140,10 +148,10 @@ router.post('/api/portfolios', async (req, res) => {
     }
 });
 
-// Portföyleri getirme endpoint'i
+
 router.get('/api/portfolios', async (req, res) => {
     try {
-        // Portföyleri ve detaylarını tek sorguda getir
+       
         const [results] = await pool.query(`
             SELECT 
                 p.*,
@@ -159,7 +167,7 @@ router.get('/api/portfolios', async (req, res) => {
             ORDER BY p.creation_date DESC
         `);
 
-        // Portföyleri grupla
+        
         const portfolioMap = new Map();
         
         results.forEach(row => {
